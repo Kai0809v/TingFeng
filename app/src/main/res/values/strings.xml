@@ -1,0 +1,35 @@
+<resources>
+    <string name="app_name">听风test</string>
+
+    <string name="info">关于</string>
+    <string name="title_home">主页</string>
+    <string name="title_utils">工具</string>
+    <string name="title_notifications">设置</string>
+    <string name="title_register">测试阶段，账号注册数据仅保留在本地</string>
+    <string name="title_users">用户列表</string>
+
+    <string name="title_activity_login">LoginActivity</string>
+    <string name="prompt_account">账户</string>
+    <string name="prompt_password">密码</string>
+    <string name="prompt_confirm_password">确认密码</string>
+    <string name="prompt_key">登录密钥</string>
+
+    <string name="tips_account">账户最多16字节</string>
+    <string name="tips_password">密码长度最多16字节</string>
+    <string name="tips_confirm">确认密码一致</string>
+
+    <string name="error_sign_in">账户或密码错误</string>
+
+    <string name="action_sign_in">登录</string>
+    <string name="action_register">注册</string>
+    <string name="welcome">"Welcome !"</string>
+    <string name="invalid_username">Not a valid username</string>
+    <string name="invalid_password">Password must be >5 characters</string>
+    <string name="login_failed">"Login failed"</string>
+
+    <string name="link0">开源项目[Github]</string>
+    <string name="link1">加入我们的[QQ群]</string>
+    <string name="email0">123@example.com</string>
+    <string name="email1">123@example.com</string>
+
+</resources>

@@ -1,0 +1,70 @@
+<resources>
+    <!-- 主页图标 -->
+    <!-- 选中状态样式 -->
+    <style name="xuanZhong">
+        <item name="android:width">36dp</item>
+        <item name="android:height">36dp</item>
+    </style>
+    <!-- 未选中状态样式 -->
+    <style name="qiYong">
+        <item name="android:width">24dp</item>
+        <item name="android:height">24dp</item>
+    </style>
+
+
+
+    <!-- 输入框样式，文本输入布局中嵌套可编辑文本输入
+    TextInputLayout（外）是容器，负责外观和布局
+    TextInputEditText （内）是实际的输入控件，负责输入行为和内容控制
+    -->
+    <style name="size_waiKuang">
+        <item name="android:layout_width">0dp</item>
+        <!-- 宽度为0dp，表示宽度由父容器决定 -->
+        <!--需确保容器留有足够的空间显示帮助文本，不要被输入控件全部占据了-->
+        <item name="android:layout_height">86dp</item>
+
+        <item name="counterEnabled">true</item>
+        <item name="counterMaxLength">16</item>
+
+    </style>
+    <style name="size_neiKuang">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+    </style>
+
+
+    <style name="account_waiKuang" parent="size_waiKuang">
+        <item name="startIconDrawable">@drawable/account0</item>
+        <item name="android:hint">@string/prompt_account</item>
+        <item name="android:maxLines">1</item>
+        <item name="endIconMode">clear_text</item>
+        <item name="android:inputType">textEmailAddress</item>
+    </style>
+    <style name="account_neiKuang" parent="size_neiKuang">
+        <item name="android:inputType">textEmailAddress</item>
+    </style>
+    <!-- app属性的不需要前缀，android前缀的需要打出来 -->
+
+    <style name="password_waiKuang" parent="size_waiKuang">
+        <item name="startIconDrawable">@drawable/lock</item>
+        <item name="endIconMode">password_toggle</item>
+        <item name="endIconDrawable">@drawable/selector_visibility</item>
+        <item name="errorEnabled">false</item>
+    </style>
+    <style name="password_neiKuang" parent="size_neiKuang">
+        <item name="android:inputType">textPassword</item>
+
+    </style>
+
+    <!-- 按钮样式 -->
+    <style name="h_btn_s">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">48dp</item>
+        <item name="android:layout_weight">0.5</item>
+        <item name="cornerRadius">8dp</item>
+        <item name="android:background">@null</item>
+        <item name="android:layout_marginStart">6dp</item>
+        <item name="android:layout_marginEnd">6dp</item>
+    </style>
+
+</resources>

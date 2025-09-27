@@ -1,0 +1,4 @@
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@drawable/account1" android:state_checked="true"/>
+    <item android:drawable="@drawable/account0" android:state_checked="false"/>
+</selector>
