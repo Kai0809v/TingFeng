@@ -14,7 +14,7 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@drawable/bg_gradient_1"
+        android:background="@drawable/bg_gradient_blue"
         android:orientation="vertical"
         android:padding="12dp">
 
@@ -66,6 +66,7 @@
             android:layout_marginTop="8dp"
             android:textSize="16sp"
             android:textStyle="bold"
+            android:text="通知标题"
             android:maxLines="1"
             android:ellipsize="end" />
         <!-- 分隔线 -->
@@ -83,6 +84,7 @@
             android:layout_height="wrap_content"
             android:textSize="16sp"
             android:maxLines="3"
+            android:text="通知内容"
             android:ellipsize="end" />
 
 

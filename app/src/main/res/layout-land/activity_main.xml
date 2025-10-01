@@ -3,7 +3,8 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/container"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:fitsSystemWindows="true">
 
     <com.google.android.material.navigationrail.NavigationRailView
         android:id="@+id/nav_rail"
@@ -17,7 +18,31 @@
         app:menu="@menu/bottom_nav_menu"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent"/>
+        app:layout_constraintBottom_toBottomOf="parent">
+        <FrameLayout
+            android:id="@+id/status_bar_bg"
+            android:layout_width="72dp"
+            android:layout_height="36dp"
+            android:contentDescription="nav_rail_bg"
+            android:layout_gravity="bottom"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent">
+            <View
+                android:id="@+id/status_bar"
+                android:layout_width="1dp"
+                android:layout_height="match_parent"
+                android:src="@drawable/bg_gradient_1"
+                android:contentDescription="Paopao"
+                android:layout_gravity="center"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintBottom_toBottomOf="parent" />
+        </FrameLayout>
+
+    </com.google.android.material.navigationrail.NavigationRailView>
     <!--上面被注释掉的属性?android:attr/windowBackground -->
 
     <!-- 调整 Fragment 约束，使其位于 NavigationRail 右侧 -->

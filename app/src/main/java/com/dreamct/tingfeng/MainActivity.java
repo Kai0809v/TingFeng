@@ -52,6 +52,7 @@ public class MainActivity extends AppCompatActivity {
         // 初始化气泡视图目标宽度
         targetWidthOfPaopao = dpToPx(this, 90); // 90dp 转换为像素
 
+        assert statusBarBg != null;
         ViewGroup.LayoutParams params = statusBarBg.getLayoutParams();
         params.height = statusBarHeight;
         statusBarBg.setLayoutParams(params);

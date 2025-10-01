@@ -12,15 +12,16 @@
     <com.google.android.material.card.MaterialCardView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        app:cardCornerRadius="10dp"
-        app:cardElevation="4dp"
-        app:strokeColor="#E0E0E0"
-        app:strokeWidth="1dp"
+        app:cardCornerRadius="18dp"
+        app:cardElevation="6dp"
+        app:strokeColor="@color/md_theme_primaryContainer"
+        app:strokeWidth="3dp"
         android:layout_marginTop="8dp">
 
         <RelativeLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:background="@drawable/bg_gradient_2"
             android:padding="36dp">
 
             <!-- 头像 -->
@@ -89,8 +90,6 @@
             android:background="#EEEEEE" />
 
         <!-- 无边框按钮2 -->
-
-        <!-- 分隔线 -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnDev"
             style="@style/Widget.Material3.Button.TextButton.Dialog"
@@ -103,11 +102,20 @@
             app:icon="@drawable/settings"
             app:iconPadding="8dp"
             app:iconTint="#666" /><!-- -->
-
+        <!-- 分隔线 -->
         <View
             android:layout_width="match_parent"
             android:layout_height="1dp"
             android:background="#EEEEEE" />
+
+        <!-- 重启开关 -->
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/config_switch"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+
+            app:thumbIcon="@drawable/refresh"
+            android:text="是否重启"/>
 
         <!-- 无边框按钮3 -->
         <!--

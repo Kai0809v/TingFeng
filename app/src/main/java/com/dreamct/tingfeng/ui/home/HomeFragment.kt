@@ -8,6 +8,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
+import androidx.core.widget.doOnTextChanged
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
@@ -15,14 +16,19 @@ import androidx.lifecycle.flowWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.transition.TransitionManager
 import com.dreamct.tingfeng.MainActivity
 import com.dreamct.tingfeng.data.AppDatabase
 import com.dreamct.tingfeng.data.NotificationLog
 import com.dreamct.tingfeng.databinding.FragmentHomeBinding
 import com.dreamct.tingfeng.service.Ting
+import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.materialswitch.MaterialSwitch
+import com.google.android.material.textfield.TextInputEditText
+import com.google.android.material.textfield.TextInputLayout
+import com.google.android.material.transition.MaterialFadeThrough
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
@@ -31,6 +37,10 @@ class HomeFragment : Fragment() {
     private var _binding: FragmentHomeBinding? = null
     private val binding get() = _binding!!
     // ********************** Component **********************
+    private lateinit var appBar :MaterialToolbar
+    private lateinit var searchEditText: TextInputEditText
+    private lateinit var searchInputLayout: TextInputLayout
+
     private lateinit var serviceSwitch: MaterialSwitch
     private lateinit var btnTest: MaterialButton
     private lateinit var btnUp: MaterialButton
@@ -39,7 +49,9 @@ class HomeFragment : Fragment() {
     private lateinit var notificationAdapter: NotificationAdapter
 
 
-    private var shouldRestart = false
+    private val transition = MaterialFadeThrough().apply {
+        duration = 300
+    }
     private val tag = "HomeFragment"
 
     override fun onCreateView(
@@ -63,35 +75,48 @@ class HomeFragment : Fragment() {
         val factory = HomeViewModelFactory(dao)
         viewModel = ViewModelProvider(this, factory)[HomeViewModel::class.java]
         // ********************** ViewBinding *****************************************
+        appBar = binding.topAppBar
+        searchEditText = binding.searchEditText
+        searchInputLayout = binding.searchInputLayout
         serviceSwitch = binding.serviceSwitch
         recyclerView = binding.cardRecyclerView
         btnTest = binding.test
         btnUp = binding.goUpon
 
-//        serviceSwitch = view.findViewById(R.id.service_switch)
-//        recyclerView = view.findViewById(R.id.cardRecyclerView)
         // ****************************************************************************
-        notificationAdapter = NotificationAdapter(emptyList()) { selectedLog ->
+        notificationAdapter = NotificationAdapter() { selectedLog ->
             // 点击item的回调处理
             // 示例：显示详情对话框
             showNotificationDetail(selectedLog)
         }
+
+        //notificationAdapter = NotificationAdapter(emptyList())
+        recyclerView.adapter = notificationAdapter
 
         recyclerView.apply {
             layoutManager = LinearLayoutManager(context)
             adapter = notificationAdapter
         }
 
+
         // 初始化ViewModel
         viewModel = ViewModelProvider(this)[HomeViewModel::class.java]
 
         // 观察数据库变化
+        // 关键改动 2：观察过滤后的数据流
         lifecycleScope.launch {
-            viewModel.allNotifications
+            viewModel.filteredNotifications
                 .flowWithLifecycle(lifecycle, Lifecycle.State.STARTED)
                 .collectLatest { notifications ->
-                    notificationAdapter.updateData(notifications)
+                    // 使用 submitList 来更新数据
+                    notificationAdapter.submitList(notifications)
                 }
+        }
+
+        // 关键改动 1：监听搜索框的文本变化
+        searchEditText.doOnTextChanged { text, _, _, _ ->
+            // 当文本变化时，立即通知 ViewModel
+            viewModel.setSearchQuery(text.toString())
         }
 
         // 初始化开关状态
@@ -118,13 +143,15 @@ class HomeFragment : Fragment() {
                     mainActivity?.startAnimation()
                     Toast.makeText(requireContext(), "Status:${Ting.isConnected}", Toast.LENGTH_SHORT).show()
                 }
+
             } else {
                 // 用户关闭开关，解绑服务
 
                 mainActivity?.stopAnimation()
+
             }
         }
-        //*****************************
+        //*************************************************************************************
 
         btnTest.setOnClickListener {
             insertTestNotification()
@@ -134,6 +161,24 @@ class HomeFragment : Fragment() {
             // 平滑滚动到第一个位置（索引0）
             recyclerView.smoothScrollToPosition(0)
         }
+
+
+        // 点击导航图标 -> 切换到搜索栏
+        appBar.setNavigationOnClickListener {
+
+            TransitionManager.beginDelayedTransition(binding.topBarContainer, transition)
+
+            appBar.visibility = View.GONE
+            searchInputLayout.visibility = View.VISIBLE
+            searchInputLayout.requestFocus()
+        }
+
+        // 搜索栏的起始图标点击事件 -> 切换到应用栏
+        searchInputLayout.setStartIconOnClickListener {
+            appBar.visibility = View.VISIBLE
+            searchInputLayout.visibility = View.GONE
+        }
+
 
 
         //*******************************************************************************
@@ -206,7 +251,8 @@ class HomeFragment : Fragment() {
                         // 仍未连接，提示用户
                         Toast.makeText(requireContext(), "哦豁，Status:${Ting.isConnected}", Toast.LENGTH_SHORT).show()
                     }
-                }, 3000)
+                }, 1000)
+                
             }
             // 延迟检查服务状态
             view?.postDelayed({
@@ -229,8 +275,9 @@ class HomeFragment : Fragment() {
 
     private fun showNotificationDetail(log: NotificationLog) {
         MaterialAlertDialogBuilder(requireContext())
-            .setTitle(log.appName + "\n" + log.title)
-            .setMessage(log.content)
+            //.setTitle(log.appName + "\n- " + log.title)
+            .setTitle(log.appName)
+            .setMessage("${log.title}\n - ${log.content}")
             .setPositiveButton("关闭", null)
             .show()
     }
@@ -270,4 +317,6 @@ class HomeFragment : Fragment() {
 
         viewModel.insertTestNotification(testLog)
     }
+
+
 }

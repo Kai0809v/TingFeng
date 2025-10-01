@@ -6,13 +6,14 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_margin="8dp"
-    app:cardCornerRadius="8dp"
+    app:cardCornerRadius="12dp"
     app:cardElevation="4dp">
 
     <!-- 用ConstraintLayout约束布局 -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:background="@drawable/bg_gradient_1"
         android:padding="16dp">
 
         <!-- 头像固定在左侧 -->

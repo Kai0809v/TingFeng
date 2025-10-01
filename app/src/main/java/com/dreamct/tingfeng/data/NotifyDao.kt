@@ -30,6 +30,21 @@ interface NotifyDao {
     @Query("SELECT * FROM notification_logs WHERE id = :id")
     suspend fun getLogById(id: Long): NotificationLog?
 
+    @Query("""
+        SELECT COUNT(*) FROM notification_logs 
+        WHERE title = :title 
+        AND content = :content 
+        AND appName = :appName 
+        AND time BETWEEN :startTime AND :endTime
+    """)
+    suspend fun checkExists(
+        title: String,
+        content: String,
+        appName: String,
+        startTime: Long,
+        endTime: Long
+    ): Int
+
     /** 获取指定应用名的记录数量 */
     @Query("SELECT COUNT(*) FROM notification_logs WHERE appName = :appName")
     suspend fun getCountByAppName(appName: String): Int

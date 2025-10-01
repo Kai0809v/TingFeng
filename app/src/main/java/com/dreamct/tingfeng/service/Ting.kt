@@ -4,8 +4,6 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.app.AlarmManager
 import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.ComponentName
 import android.content.Context
@@ -22,6 +20,8 @@ import com.dreamct.tingfeng.data.NotifyDao
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlin.math.log
+
 /** 此服务继承于NotificationListenerService，服务交给系统控制 */
 class Ting : NotificationListenerService() {
 
@@ -48,6 +48,10 @@ class Ting : NotificationListenerService() {
     private val notificationChannelId = "ting_service_channel"
     private val notificationId = 101
 
+    // 在类中添加内存缓存
+    private val recentNotifications = mutableSetOf<String>()
+    private  val CACHE_MAX_SIZE = 1000
+
     override fun onCreate() {
         super.onCreate()
         Log.d(tag, "Service created")
@@ -69,6 +73,12 @@ class Ting : NotificationListenerService() {
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
+
+        process(sbn)
+
+    }
+
+    private fun process(sbn: StatusBarNotification){
         try {
             // 提取通知信息
             val notification = sbn.notification
@@ -82,6 +92,11 @@ class Ting : NotificationListenerService() {
             val content = extras.getString(Notification.EXTRA_TEXT, "")
             val packageName = sbn.packageName
 
+            // 空值检查：当标题和内容都为空时不记录
+            if (title.isNullOrEmpty() && content.isNullOrEmpty()) {
+                return
+            }
+
 
             // 创建通知记录对象
             val notificationLog = NotificationLog(
@@ -94,28 +109,80 @@ class Ting : NotificationListenerService() {
                 intent = null // 暂时不处理intent
             )
 
-            // 在后台线程保存到数据库
-            CoroutineScope(Dispatchers.IO).launch {
-                notifyDao.insert(notificationLog)
-                Log.d(tag, "Notification saved: $title")
-            }
+            jiLu(notificationLog)
         } catch (e: Exception) {
             Log.e(tag, "Error processing notification", e)
         }
     }
+    /** 新增的独立插入方法 后台线程 */
+    private fun jiLu(log: NotificationLog) {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                // 生成缓存键（包名+标题+内容的哈希）
+                val cacheKey = "${log.packageName}:${log.title}:${log.content}".hashCode().toString()
+
+                // 先检查内存缓存（快速去重）
+                if (recentNotifications.contains(cacheKey)) {
+                    Log.d(tag, "Duplicate notification skipped (memory cache): ${log.title}")
+                    return@launch
+                }
+
+                // 内存缓存中没有，再检查数据库
+                val timeWindowStart = log.time - 60_000
+                val exists = notifyDao.checkExists(
+                    log.title,
+                    log.content,
+                    log.appName,
+                    timeWindowStart,
+                    log.time
+                ) > 0
+
+                if (!exists) {
+                    notifyDao.insert(log)
+                    // 添加到内存缓存
+                    addToMemoryCache(cacheKey)
+                    Log.d(tag, "Notification saved: ${log.title}")
+                } else {
+                    Log.d(tag, "Duplicate notification skipped: ${log.title}")
+                    addToMemoryCache(cacheKey) // 即使是重复的也缓存，避免重复查询
+                }
+            } catch (e: Exception) {
+                Log.e(tag, "Error saving notification", e)
+            }
+        }
+    }
+
+    /** 添加到内存缓存 */
+    private fun addToMemoryCache(key: String) {
+        synchronized(recentNotifications) {
+            recentNotifications.add(key)
+            // 限制缓存大小
+            if (recentNotifications.size > CACHE_MAX_SIZE) {
+                val itemsToRemove = recentNotifications.take(CACHE_MAX_SIZE / 2)
+                recentNotifications.removeAll(itemsToRemove.toSet())
+            }
+        }
+    }
+
 
     override fun onListenerDisconnected() {
         super.onListenerDisconnected()
         Log.w(tag, "Listener disconnected")
 
         isConnected = false
-        // 尝试重新连接
-        try {
-            requestRebind(ComponentName(this, Ting::class.java))
-        } catch (e: Exception) {
-            Log.e(tag, "Failed to rebind", e)
-            // 计划稍后重新启动服务
-            //scheduleServiceRestart()
+        if (TingConfig.shouldRestart(applicationContext)) {
+            Log.d(tag, "尝试重新绑定")
+            // 尝试重新连接
+            try {
+                requestRebind(ComponentName(this, Ting::class.java))
+            } catch (e: Exception) {
+                Log.e(tag, "Failed to rebind", e)
+                // 计划稍后重新启动服务
+                //scheduleServiceRestart()
+            }
+
+        }else{
+            Log.d(tag, "不尝试重新绑定")
         }
     }
 

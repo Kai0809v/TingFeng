@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <!-- 第一个尾部图标：清除输入 -->
+    <item
+        android:id="@+id/action_clear"
+        android:icon="@drawable/clear"
+        android:title="清除"
+        app:showAsAction="ifRoom" />
+
+    <!-- 第二个尾部图标：取消搜索 -->
+    <item
+        android:id="@+id/action_cancel"
+        android:icon="@drawable/close"
+        android:title="取消"
+        app:showAsAction="ifRoom" />
+</menu>
