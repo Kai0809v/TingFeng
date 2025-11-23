@@ -1,10 +1,11 @@
 <resources>
     <string name="app_name">听风test</string>
+    <string name="version">版本 1.0.0</string>
 
     <string name="info">关于</string>
     <string name="title_home">主页</string>
     <string name="title_utils">工具</string>
-    <string name="title_notifications">设置</string>
+    <string name="settings">设置</string>
     <string name="title_register">测试阶段，账号注册数据仅保留在本地</string>
     <string name="title_users">用户列表</string>
 
@@ -17,6 +18,18 @@
     <string name="tips_account">账户最多16字节</string>
     <string name="tips_password">密码长度最多16字节</string>
     <string name="tips_confirm">确认密码一致</string>
+    <string name="tips_stability">
+        为了更稳定的运行\n
+        建议在设置-耗电管理中允许应用后台行为\n
+        耗电量并不高\n
+        在转为前台服务前，未必管用
+    </string>
+    <string name="tips_function">
+        此应用目前为测试版本\n
+        - 记录历史通知记录，可查询，防撤回（仅文本）
+    </string>
+
+
 
     <string name="error_sign_in">账户或密码错误</string>
 
@@ -30,6 +43,6 @@
     <string name="link0">开源项目[Github]</string>
     <string name="link1">加入我们的[QQ群]</string>
     <string name="email0">123@example.com</string>
-    <string name="email1">123@example.com</string>
+    <string name="email1">Kai0809v@gmail.com</string>
 
 </resources>

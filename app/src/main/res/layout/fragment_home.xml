@@ -111,7 +111,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     style="@style/Widget.Material3.Button.IconButton"
-                    app:icon="@drawable/up"
+                    app:icon="@drawable/up1"
                     android:contentDescription="button1"/>
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/test"
@@ -119,15 +119,15 @@
                     android:layout_height="wrap_content"
                     style="@style/Widget.Material3.Button.IconButton"
                     app:icon="@drawable/send"
-                    android:contentDescription="button3"/>
+                    android:contentDescription="button2"/>
                 <com.google.android.material.button.MaterialButton
-                    android:id="@+id/share"
+                    android:id="@+id/settings"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     style="@style/Widget.Material3.Button.IconButton"
-                    app:icon="@drawable/share"
+                    app:icon="@drawable/settings1"
                     app:iconTint="?attr/colorAccent"
-                    android:contentDescription="button4"/>
+                    android:contentDescription="@string/settings"/>
 
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>

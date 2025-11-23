@@ -20,7 +20,6 @@ import com.dreamct.tingfeng.data.NotifyDao
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlin.math.log
 
 /** 此服务继承于NotificationListenerService，服务交给系统控制 */
 class Ting : NotificationListenerService() {

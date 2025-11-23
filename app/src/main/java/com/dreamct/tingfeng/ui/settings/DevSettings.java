@@ -2,6 +2,7 @@ package com.dreamct.tingfeng.ui.settings;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.util.Log;
 import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
@@ -13,7 +14,9 @@ import androidx.core.view.WindowInsetsCompat;
 import com.dreamct.tingfeng.R;
 import com.dreamct.tingfeng.data.AppDatabase;
 import com.dreamct.tingfeng.data.UserListActivity;
+import com.dreamct.tingfeng.service.TingConfig;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.materialswitch.MaterialSwitch;
 
 public class DevSettings extends AppCompatActivity {
 
@@ -29,6 +32,30 @@ public class DevSettings extends AppCompatActivity {
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
             return insets;
         });
+
+        MaterialSwitch notifySwitch = findViewById(R.id.notification_switch);
+        notifySwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if(isChecked){
+                if(true){
+
+                }else{
+                    Intent Notify = new Intent("android.settings.NOTIFICATION_SETTINGS");
+                    startActivity(Notify);
+                }
+            }else{
+
+            }
+
+        });
+
+        boolean shouldRestart = TingConfig.shouldRestart(this);
+        MaterialSwitch configSwitch = findViewById(R.id.config_switch);
+        configSwitch.setChecked(shouldRestart);
+        configSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            TingConfig.setShouldRestart(this, isChecked);
+            Log.d("DevSettings", "重启开关状态：" + isChecked);
+        });
+
         findViewById(R.id.data_usage).setOnClickListener(v -> {
             Intent users = new Intent(this, UserListActivity.class);
             startActivity(users);

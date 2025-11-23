@@ -9,8 +9,10 @@ public class SettingsViewModel extends ViewModel {
     private final MutableLiveData<String> mText;
     public SettingsViewModel() {
         mText = new MutableLiveData<>();
-        mText.setValue("应用想要稳定运行，须在设置-耗电管理中允许应用后台行为\n" +
-                "耗电量并不高");
+        mText.setValue("为了更稳定的运行\n" +
+                "        建议在设置-耗电管理中允许应用后台行为\n" +
+                "        耗电量并不高\n" +
+                "        在转为前台服务前，未必管用");
     }
 
     public LiveData<String> getText() {

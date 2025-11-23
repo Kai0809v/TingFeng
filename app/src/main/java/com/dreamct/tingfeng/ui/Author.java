@@ -38,7 +38,7 @@ public class Author extends AppCompatActivity {
         String keyword0 ="Github";
         String keyword1 ="QQ群";
         // 使用工具类设置可点击链接
-        LinkSpanUtil.setClickableSpan(tvLink0, wholeText0, keyword0, "https://github.com");
+        LinkSpanUtil.setClickableSpan(tvLink0, wholeText0, keyword0, "https://github.com/Kai0809v/TingFeng");
         LinkSpanUtil.setClickableSpan(tvLink1, wholeText1, keyword1, "https://example.com/join-us");
 
         /******

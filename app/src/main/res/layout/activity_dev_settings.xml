@@ -90,8 +90,49 @@
                             android:id="@+id/notification_switch"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:checked="true"/>
+                            app:thumbIcon="@drawable/notification"
+                            android:checked="false"/>
                     </LinearLayout>
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:background="?attr/colorOutline"/>
+
+                    <!-- 重启开关 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:padding="16dp"
+                        android:gravity="center_vertical">
+
+                        <ImageView
+                            android:layout_width="24dp"
+                            android:layout_height="24dp"
+                            android:src="@drawable/refresh"
+                            android:layout_marginEnd="16dp"
+                            android:contentDescription="应用重启开关，未必起效"
+                            app:tint="?attr/colorOnSurfaceVariant" />
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="自动重启"
+                            android:textSize="16sp"
+                            android:textColor="?attr/colorOnSurface"/>
+
+                        <!-- 重启开关 -->
+                        <com.google.android.material.materialswitch.MaterialSwitch
+                            android:id="@+id/config_switch"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+
+                            app:thumbIcon="@drawable/refresh"
+                            android:text="未必有用💤"/>
+                    </LinearLayout>
+
 
                     <View
                         android:layout_width="match_parent"

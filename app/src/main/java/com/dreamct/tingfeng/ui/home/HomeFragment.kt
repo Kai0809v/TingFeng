@@ -18,11 +18,14 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.transition.TransitionManager
 import com.dreamct.tingfeng.MainActivity
+import com.dreamct.tingfeng.R
 import com.dreamct.tingfeng.data.AppDatabase
 import com.dreamct.tingfeng.data.NotificationLog
 import com.dreamct.tingfeng.databinding.FragmentHomeBinding
 import com.dreamct.tingfeng.service.Ting
 import com.google.android.material.appbar.MaterialToolbar
+import com.google.android.material.bottomsheet.BottomSheetBehavior
+import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.materialswitch.MaterialSwitch
@@ -44,6 +47,7 @@ class HomeFragment : Fragment() {
     private lateinit var serviceSwitch: MaterialSwitch
     private lateinit var btnTest: MaterialButton
     private lateinit var btnUp: MaterialButton
+    private lateinit var btnSettings: MaterialButton
     private lateinit var recyclerView: RecyclerView
     private lateinit var viewModel: HomeViewModel
     private lateinit var notificationAdapter: NotificationAdapter
@@ -53,6 +57,7 @@ class HomeFragment : Fragment() {
         duration = 300
     }
     private val tag = "HomeFragment"
+    private var isSettingProgrammatically = false // 防止程序设置触发监听器
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -82,6 +87,7 @@ class HomeFragment : Fragment() {
         recyclerView = binding.cardRecyclerView
         btnTest = binding.test
         btnUp = binding.goUpon
+        btnSettings = binding.settings
 
         // ****************************************************************************
         notificationAdapter = NotificationAdapter() { selectedLog ->
@@ -112,6 +118,25 @@ class HomeFragment : Fragment() {
                     notificationAdapter.submitList(notifications)
                 }
         }
+        // 观察 ViewModel 中的开关状态
+        lifecycleScope.launch {
+            viewModel.switchState
+                .flowWithLifecycle(lifecycle, Lifecycle.State.STARTED)
+                .collect { state ->
+                    updateSwitchUI(state)
+                }
+        }
+
+        // 设置开关监听器（但防止程序设置触发）
+        serviceSwitch.setOnCheckedChangeListener { _, isChecked ->
+            if (isSettingProgrammatically) {
+                return@setOnCheckedChangeListener
+            }
+            handleUserSwitchChange(isChecked)
+        }
+
+        // 初始状态检查
+        checkAndUpdateSwitchState()
 
         // 关键改动 1：监听搜索框的文本变化
         searchEditText.doOnTextChanged { text, _, _, _ ->
@@ -120,37 +145,10 @@ class HomeFragment : Fragment() {
         }
 
         // 初始化开关状态
-        updateSwitchState()
+        //updateSwitchState()
 
         // **********************Component methods *************************************
-        // 设置开关监听
-        serviceSwitch.setOnCheckedChangeListener { _, isChecked ->
-            Log.d(tag, "Switch changed to: $isChecked")
 
-            val mainActivity = requireActivity() as? MainActivity
-
-            if (isChecked) {
-                // 如果用户打开开关，检查权限
-                if (!isNotificationServiceEnabled()) {
-                    // 没有权限，显示对话框
-                    showPermissionDialog()
-                    // 暂时不改变开关状态，等用户处理完权限后再决定
-                    serviceSwitch.isChecked = false
-                } else {
-                    // 有权限，绑定服务
-                    bindNotificationService()
-                    // 绑定成功，更新UI
-                    mainActivity?.startAnimation()
-                    Toast.makeText(requireContext(), "Status:${Ting.isConnected}", Toast.LENGTH_SHORT).show()
-                }
-
-            } else {
-                // 用户关闭开关，解绑服务
-
-                mainActivity?.stopAnimation()
-
-            }
-        }
         //*************************************************************************************
 
         btnTest.setOnClickListener {
@@ -160,6 +158,10 @@ class HomeFragment : Fragment() {
         btnUp.setOnClickListener {
             // 平滑滚动到第一个位置（索引0）
             recyclerView.smoothScrollToPosition(0)
+        }
+
+        btnSettings.setOnClickListener {
+            showSettingsBottomSheet()
         }
 
 
@@ -184,26 +186,181 @@ class HomeFragment : Fragment() {
         //*******************************************************************************
     }
 
-    private fun updateSwitchState() {
-        val hasPermission = isNotificationServiceEnabled()
-        val isConnected = Ting.isConnected
+    private fun showSettingsBottomSheet() {
+        val bottomSheetDialog = BottomSheetDialog(requireContext())
+        val view = layoutInflater.inflate(R.layout.bottom_sheet_settings, null)
+        bottomSheetDialog.setContentView(view)
+        bottomSheetDialog.show()
 
-        Log.d(tag, "Update switch state: hasPermission=$hasPermission, isServiceRunning=$isConnected")
+        // 设置展开状态
+        bottomSheetDialog.behavior.state = BottomSheetBehavior.STATE_EXPANDED
 
-        // 只有同时有权限且服务正在运行时，开关才打开
-        serviceSwitch.isChecked = hasPermission && isConnected
+        // 设置圆角背景
+//        bottomSheetDialog.window?.findViewById<View>(com.google.android.material.R.id.design_bottom_sheet)
+//            ?.setBackgroundResource(R.drawable.bottom_sheet_background)
 
-//        val mainActivity = requireActivity() as? MainActivity
-//        mainActivity?.let {
-//            if(isConnected) {
-//                it.startAnimation()
-//            }else{
-//                it.stopAnimation()
-//            }
-//        }
-
+//        // 设置展开/收起功能
+//        setupExpandableSections(view, bottomSheetDialog)
+//
+//        // 设置按钮点击事件
+//        setupButtonClicks(view, bottomSheetDialog)
     }
 
+    /*
+    private fun setupExpandableSections(view: View, dialog: BottomSheetDialog) {
+        // 已屏蔽的应用展开/收起
+        val headerBlockedApps = view.findViewById<LinearLayout>(R.id.header_blocked_apps)
+        val contentBlockedApps = view.findViewById<LinearLayout>(R.id.content_blocked_apps)
+        val iconBlockedApps = view.findViewById<ShapeableImageView>(R.id.icon_blocked_apps)
+
+        headerBlockedApps.setOnClickListener {
+            val isExpanded = contentBlockedApps.visibility == View.VISIBLE
+            contentBlockedApps.visibility = if (isExpanded) View.GONE else View.VISIBLE
+            iconBlockedApps.rotation = if (isExpanded) 0f else 180f
+        }
+
+        // 已屏蔽的关键词展开/收起
+        val headerKeywords = view.findViewById<LinearLayout>(R.id.header_keywords)
+        val contentKeywords = view.findViewById<LinearLayout>(R.id.content_keywords)
+        val iconKeywords = view.findViewById<ShapeableImageView>(R.id.icon_keywords)
+
+        headerKeywords.setOnClickListener {
+            val isExpanded = contentKeywords.visibility == View.VISIBLE
+            contentKeywords.visibility = if (isExpanded) View.GONE else View.VISIBLE
+            iconKeywords.rotation = if (isExpanded) 0f else 180f
+        }
+    }
+
+    private fun setupButtonClicks(view: View, dialog: BottomSheetDialog) {
+        // 屏蔽应用按钮
+        view.findViewById<MaterialButton>(R.id.btn_block_app).setOnClickListener {
+            // 实现选择应用逻辑
+            showAppSelectionDialog()
+        }
+
+        // 添加关键词按钮
+        view.findViewById<MaterialButton>(R.id.btn_add_keyword).setOnClickListener {
+            val keyword = view.findViewById<TextInputEditText>(R.id.et_keyword).text.toString().trim()
+            if (keyword.isNotEmpty()) {
+                addKeyword(keyword)
+                view.findViewById<TextInputEditText>(R.id.et_keyword).text?.clear()
+            } else {
+                Toast.makeText(requireContext(), "请输入关键词", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun showAppSelectionDialog() {
+        // 实现应用选择对话框
+        // 这里可以启动一个 Activity 或显示另一个 Dialog 来选择应用
+    }
+
+    private fun addKeyword(keyword: String) {
+        // 实现添加关键词逻辑
+        // 更新 UI 显示已添加的关键词
+    }
+    */
+
+    /**
+     * 处理用户手动切换开关的操作
+     * 这个方法只在用户主动点击开关时调用，程序设置开关状态时不会调用
+     */
+    private fun handleUserSwitchChange(isChecked: Boolean) {
+        Log.d(tag, "User manually changed switch to: $isChecked")
+
+        val mainActivity = requireActivity() as? MainActivity
+
+        if (isChecked) {
+            // 用户手动打开开关
+            if (!isNotificationServiceEnabled()) {
+                // 没有权限，显示对话框
+                showPermissionDialog()
+                // 注意：这里不能直接设置开关状态，因为对话框是异步的
+                // 状态会在用户返回后通过 onResume 更新
+            } else {
+                // 有权限，绑定服务
+                bindNotificationService()
+                // 绑定成功，更新UI
+                mainActivity?.startAnimation()
+                Toast.makeText(requireContext(), "服务状态: ${Ting.isConnected}", Toast.LENGTH_SHORT).show()
+
+                // 更新 ViewModel 状态
+                val hasPermission = isNotificationServiceEnabled()
+                val isConnected = Ting.isConnected
+                viewModel.updateSwitchState(hasPermission, isConnected)
+            }
+        } else {
+            // 用户手动关闭开关
+            mainActivity?.stopAnimation()
+            Toast.makeText(requireContext(), "服务已停止", Toast.LENGTH_SHORT).show()
+
+            // 更新 ViewModel 状态
+            val hasPermission = isNotificationServiceEnabled()
+            val isConnected = false // 用户主动关闭，认为服务断开
+            viewModel.updateSwitchState(hasPermission, isConnected)
+        }
+    }
+    private fun checkAndUpdateSwitchState() {
+        val hasPermission = isNotificationServiceEnabled()
+        val isConnected = Ting.isConnected
+        viewModel.updateSwitchState(hasPermission, isConnected)
+    }
+
+
+    private fun updateSwitchUI(state: HomeViewModel.SwitchState) {
+        // 防止程序设置触发监听器
+        isSettingProgrammatically = true
+
+        if (state.shouldBeVisible) {
+            // 需要显示开关
+            if (serviceSwitch.visibility != View.VISIBLE) {
+                showSwitchWithAnimation()
+                viewModel.switchShown.hasShown = false
+            }
+            serviceSwitch.isChecked = state.hasPermission && state.isConnected
+        } else {
+            // 需要隐藏开关
+            if (serviceSwitch.visibility != View.GONE) {
+                // 只有当开关之前没有显示过时才展示动画隐藏
+                if (!viewModel.switchShown.hasShown) {
+                    hideSwitchWithAnimation()
+                    viewModel.switchShown.hasShown = true
+                }else{serviceSwitch.visibility = View.GONE}//否则直接隐藏
+            }
+        }
+
+        isSettingProgrammatically = false
+    }
+
+    private fun showSwitchWithAnimation() {
+        serviceSwitch.visibility = View.VISIBLE
+        serviceSwitch.alpha = 0f
+        serviceSwitch.scaleX = 0.8f
+        serviceSwitch.scaleY = 0.8f
+
+        serviceSwitch.animate()
+            .alpha(1f)
+            .scaleX(1f)
+            .scaleY(1f)
+            .setDuration(300)
+            .start()
+    }
+
+    private fun hideSwitchWithAnimation() {
+        serviceSwitch.animate()
+            .alpha(0f)
+            .scaleX(0.8f)
+            .scaleY(0.8f)
+            .setDuration(300)
+            .withEndAction {
+                serviceSwitch.visibility = View.GONE
+                // 恢复属性
+                serviceSwitch.alpha = 1f
+                serviceSwitch.scaleX = 1f
+                serviceSwitch.scaleY = 1f
+            }
+            .start()
+    }
     private fun isNotificationServiceEnabled(): Boolean {
         return try {
             val enabledListeners = Settings.Secure.getString(
@@ -255,9 +412,9 @@ class HomeFragment : Fragment() {
                 
             }
             // 延迟检查服务状态
-            view?.postDelayed({
-                updateSwitchState()
-            }, 1000)
+//            view?.postDelayed({
+//                updateSwitchState()
+//            }, 1000)
         } catch (e: Exception) {
             Log.e(tag, "Failed to start service", e)
             serviceSwitch.isChecked = false
@@ -285,10 +442,8 @@ class HomeFragment : Fragment() {
 
     override fun onResume() {
         super.onResume()
-        // 当Fragment恢复时，更新开关状态
-        if (::serviceSwitch.isInitialized) {
-            updateSwitchState()
-        }
+        // 每次可见时检查状态（比如用户从权限设置返回）
+        checkAndUpdateSwitchState()
     }
 
     override fun onDestroyView() {

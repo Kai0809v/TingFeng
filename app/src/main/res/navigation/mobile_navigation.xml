@@ -25,7 +25,7 @@
     <fragment
         android:id="@+id/navigation_notifications"
         android:name="com.dreamct.tingfeng.ui.settings.SettingsFragment"
-        android:label="@string/title_notifications"
+        android:label="@string/settings"
         tools:layout="@layout/fragment_settings" >
         <action
             android:id="@+id/action_navigation_notifications_to_navigation_home"

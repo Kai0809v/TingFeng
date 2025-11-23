@@ -99,7 +99,7 @@
                         android:id="@+id/app_description"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="这是一个功能强大的应用程序，提供多种实用工具和服务，满足您的日常需求。"
+                        android:text="@string/tips_function"
                         android:textSize="14sp"
                         android:textColor="?attr/colorOnSurfaceVariant"
                         android:lineSpacingExtra="4dp"/>

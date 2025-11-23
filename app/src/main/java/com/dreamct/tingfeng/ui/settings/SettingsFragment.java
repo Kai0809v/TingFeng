@@ -30,9 +30,9 @@ public class SettingsFragment extends Fragment {
         View root = binding.getRoot();
 
         // 初始化开关状态
-        boolean shouldRestart = TingConfig.shouldRestart(requireContext());
-        binding.configSwitch.setChecked(shouldRestart);
-
+//        boolean shouldRestart = TingConfig.shouldRestart(requireContext());
+//        binding.configSwitch.setChecked(shouldRestart);
+//
 
         // ******************************* 组件方法 ******************************************
         // 绑定按钮点击事件
@@ -52,10 +52,10 @@ public class SettingsFragment extends Fragment {
         });
 
         // 绑定重启开关事件
-        binding.configSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            TingConfig.setShouldRestart(requireContext(), isChecked);
-            Log.d("SettingsFragment", "重启开关状态：" + isChecked);
-        });
+//        binding.configSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+//            TingConfig.setShouldRestart(requireContext(), isChecked);
+//            Log.d("SettingsFragment", "重启开关状态：" + isChecked);
+//        });
 
 
         final TextView textView = binding.textSettings;

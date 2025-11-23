@@ -52,7 +52,7 @@ public class MainActivity extends AppCompatActivity {
         // 初始化气泡视图目标宽度
         targetWidthOfPaopao = dpToPx(this, 90); // 90dp 转换为像素
 
-        assert statusBarBg != null;
+
         ViewGroup.LayoutParams params = statusBarBg.getLayoutParams();
         params.height = statusBarHeight;
         statusBarBg.setLayoutParams(params);
@@ -107,7 +107,7 @@ public class MainActivity extends AppCompatActivity {
             } else if (itemId == R.id.navigation_utils) {
                 item.setTitle(getString(R.string.title_utils));
             } else if (itemId == R.id.navigation_notifications) {
-                item.setTitle(getString(R.string.title_notifications));
+                item.setTitle(getString(R.string.settings));
             }
 
             // 执行导航
@@ -131,7 +131,7 @@ public class MainActivity extends AppCompatActivity {
             } else if (destId == R.id.navigation_utils) {
                 menu.findItem(R.id.navigation_utils).setTitle(getString(R.string.title_utils));
             } else if (destId == R.id.navigation_notifications) {
-                menu.findItem(R.id.navigation_notifications).setTitle(getString(R.string.title_notifications));
+                menu.findItem(R.id.navigation_notifications).setTitle(getString(R.string.settings));
             }
         });
 

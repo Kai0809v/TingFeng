@@ -1,6 +1,7 @@
 package com.dreamct.tingfeng.service
 
 import android.content.Context
+import androidx.core.content.edit
 
 object TingConfig {
 
@@ -11,9 +12,9 @@ object TingConfig {
     @JvmStatic
     fun setShouldRestart(context: Context, value: Boolean) {
         context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .putBoolean(KEY_SHOULD_RESTART, value)
-            .apply()
+            .edit {
+                putBoolean(KEY_SHOULD_RESTART, value)
+            }
     }
 
     @JvmStatic
