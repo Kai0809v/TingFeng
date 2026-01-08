@@ -1,12 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- TODO: 根布局这个LinearLayout可以换成coordinatorLayout
- 可以少一个recycle view外面的coordinatorLayout嵌套-->
-<LinearLayout
+<androidx.coordinatorlayout.widget.CoordinatorLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical">
+    android:layout_height="match_parent">
     <!-- 代码中实现了android:fitsSystemWindows="true"-->
 
     <com.google.android.material.appbar.AppBarLayout
@@ -55,89 +52,61 @@
             android:text="服务开关"
             android:layout_gravity="center"/>
 
-        <com.google.android.material.tabs.TabLayout
-            android:id="@+id/tabLayout"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            app:tabBackground="@color/md_theme_surface"
-            app:tabTextColor="@color/md_theme_onSurface">
-
-            <com.google.android.material.tabs.TabItem
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="历史记录" />
-
-            <com.google.android.material.tabs.TabItem
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="最近关闭" />
-        </com.google.android.material.tabs.TabLayout>
 
     </com.google.android.material.appbar.AppBarLayout>
 
-    <androidx.coordinatorlayout.widget.CoordinatorLayout
+    <!-- 用 RecyclerView替代ViewPager -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/cardRecyclerView"
         android:layout_width="match_parent"
-        android:layout_weight="1"
-        android:layout_height="0dp">
-        <!-- 用 RecyclerView替代ViewPager -->
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/cardRecyclerView"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
-            android:orientation="vertical"/>
-        <!-- 悬浮工具栏 -->
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/floating_toolbar"
+        android:layout_height="match_parent"
+        app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
+        android:orientation="vertical"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior"/>
+    <!-- 悬浮工具栏 -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/floating_toolbar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_margin="16dp"
+        app:cardBackgroundColor="?attr/colorPrimaryContainer"
+        app:cardCornerRadius="36dp"
+        app:cardElevation="3dp"
+        app:contentPadding="8dp"
+        style="@style/Widget.Material3.Toolbar">
+
+        <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_gravity="bottom|end"
-            android:layout_margin="16dp"
-            app:cardBackgroundColor="?attr/colorPrimaryContainer"
-            app:cardCornerRadius="36dp"
-            app:cardElevation="3dp"
-            app:contentPadding="8dp"
-            style="@style/Widget.Material3.Toolbar">
+            android:orientation="vertical"
+            android:gravity="center">
 
-            <LinearLayout
+            <!-- 操作图标 1 没有checkable默认false-->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/go_upon"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:gravity="center">
+                style="@style/Widget.Material3.Button.IconButton"
+                app:icon="@drawable/up1"
+                android:contentDescription="button1"/>
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/test"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                style="@style/Widget.Material3.Button.IconButton"
+                app:icon="@drawable/send"
+                android:contentDescription="button2"/>
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/settings"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                style="@style/Widget.Material3.Button.IconButton"
+                app:icon="@drawable/settings1"
+                app:iconTint="?attr/colorAccent"
+                android:contentDescription="@string/settings"/>
 
-                <!-- 操作图标 1 没有checkable默认false-->
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/go_upon"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    style="@style/Widget.Material3.Button.IconButton"
-                    app:icon="@drawable/up1"
-                    android:contentDescription="button1"/>
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/test"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    style="@style/Widget.Material3.Button.IconButton"
-                    app:icon="@drawable/send"
-                    android:contentDescription="button2"/>
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/settings"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    style="@style/Widget.Material3.Button.IconButton"
-                    app:icon="@drawable/settings1"
-                    app:iconTint="?attr/colorAccent"
-                    android:contentDescription="@string/settings"/>
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
 
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-    </androidx.coordinatorlayout.widget.CoordinatorLayout>
-    <!-- 底部占位视图 padding，在activity_main中已经设置了底部约束，不需要了
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="80dp"
-        android:layout_gravity="bottom"/>
-    -->
-
-</LinearLayout>
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

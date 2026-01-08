@@ -46,7 +46,6 @@ class HomeFragment : Fragment() {
     private lateinit var appBar :MaterialToolbar
     private lateinit var searchEditText: TextInputEditText
     private lateinit var searchInputLayout: TextInputLayout
-
     private lateinit var serviceSwitch: MaterialSwitch
     private lateinit var btnTest: MaterialButton
     private lateinit var btnUp: MaterialButton
@@ -56,6 +55,11 @@ class HomeFragment : Fragment() {
     private lateinit var notificationAdapter: NotificationAdapter
 
 
+
+    // 新增：未读消息计数器
+    private var unreadCount = 0
+    // 新增：记录上一次列表的最顶端位置，用于判断是否有新消息插入
+    private var lastTopPosition = 0
     private val transition = MaterialFadeThrough().apply {
         duration = 300
     }
@@ -92,21 +96,86 @@ class HomeFragment : Fragment() {
         btnSettings = binding.settings
 
         // ****************************************************************************
+        // 初始化 LayoutManager
+        val layoutManager = LinearLayoutManager(context)
+        recyclerView.layoutManager = layoutManager
+
+// 跟上面的功能是相同的，不过需要在其他地方调用，所以单独弄出来设置
+//        recyclerView.apply {
+//            layoutManager = LinearLayoutManager(context)
+//            adapter = notificationAdapter
+//        }
+
+
         notificationAdapter = NotificationAdapter() { selectedLog ->
             showNotificationDetail(selectedLog)
         }
+        // 在 adapter 初始化后设置
+        recyclerView.adapter = notificationAdapter
 
-        recyclerView.apply {
-            layoutManager = LinearLayoutManager(context)
-            adapter = notificationAdapter
-        }
+
+
+
+
+
+        recyclerView.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+            override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
+                super.onScrolled(recyclerView, dx, dy)
+
+                val firstVisibleItemPosition = layoutManager.findFirstVisibleItemPosition()
+
+                // 逻辑 A：如果用户手动滑回顶部，清除未读计数
+                if (firstVisibleItemPosition == 0) {
+                    resetUnreadCount()
+                } else {
+                    // 逻辑 B：如果用户正在向上滑动（dy < 0），且之前有未读数，尝试递减
+                    // 这里做一个简单的估算：每次显示新的 Item 时，未读数 -1
+                    // 实际上完全精确匹配比较难，这里用位置差来修正
+                    if (unreadCount > 0 && firstVisibleItemPosition < lastTopPosition) {
+                        val diff = lastTopPosition - firstVisibleItemPosition
+                        updateUnreadCount(unreadCount - diff)
+                    }
+                }
+
+                // 控制 btnUp 的显示/隐藏（可选，根据需求保留）
+                // if (firstVisibleItemPosition > 0) btnUp.show() else btnUp.hide()
+
+                lastTopPosition = firstVisibleItemPosition
+            }
+        })
 
         // 观察数据库变化
         lifecycleScope.launch {
             viewModel.filteredNotifications
                 .flowWithLifecycle(lifecycle, Lifecycle.State.STARTED)
                 .collectLatest { notifications ->
-                    notificationAdapter.submitList(notifications)
+                    // 在提交数据前，判断是否在浏览旧数据
+                    val layoutManager = recyclerView.layoutManager as LinearLayoutManager
+                    val firstVisiblePos = layoutManager.findFirstVisibleItemPosition()
+
+                    // 如果当前不在顶部（firstVisiblePos > 0），且新数据来了
+                    // 注意：这里需要根据具体的 ListAdapter 差异比对逻辑。
+                    // 简单做法：如果列表不在顶部，且新列表比旧列表长（或者只是判定为新数据），则增加计数
+                    // 因为 submitList 是异步的，这里做一个假设：
+                    // 只有当用户没有浏览最顶部时，才累加计数。
+
+                    if (firstVisiblePos > 0 && notifications.isNotEmpty()) {
+                        // 这是一个简化逻辑：假设每次 collect 都是因为插入了一条新数据
+                        // 严谨的做法是在 Adapter 的 DataObserver 中做，但这里更简单
+                        val previousCount = notificationAdapter.itemCount
+                        val newCount = notifications.size
+                        if (newCount > previousCount) {
+                            val addedCount = newCount - previousCount
+                            updateUnreadCount(unreadCount + addedCount)
+                        }
+                    }
+
+                    notificationAdapter.submitList(notifications) {
+                        // 数据更新完成后，如果之前在顶部，保持在顶部（避免被新消息顶下去）
+                        if (firstVisiblePos == 0) {
+                            recyclerView.scrollToPosition(0)
+                        }
+                    }
                 }
         }
 
@@ -140,8 +209,28 @@ class HomeFragment : Fragment() {
             insertTestNotification()
         }
 
+        // 智能智能回到顶部
         btnUp.setOnClickListener {
-            recyclerView.smoothScrollToPosition(0)
+            val layoutManager = recyclerView.layoutManager as LinearLayoutManager
+            val firstVisiblePos = layoutManager.findFirstVisibleItemPosition()
+
+            // 阈值：超过 20 条视为“太远”
+            val jumpThreshold = 20
+
+            if (firstVisiblePos > jumpThreshold) {
+                // 策略：先瞬移到第 20 条，再平滑滚动到 0
+                // 这样既能看到滚动的动画效果，又不会等太久
+                recyclerView.scrollToPosition(jumpThreshold)
+                recyclerView.post {
+                    recyclerView.smoothScrollToPosition(0)
+                }
+            } else {
+                // 距离近，直接平滑滚动
+                recyclerView.smoothScrollToPosition(0)
+            }
+
+            // 点击后必然回到顶部，清除计数
+            resetUnreadCount()
         }
 
         btnSettings.setOnClickListener {
@@ -193,14 +282,14 @@ class HomeFragment : Fragment() {
 
                     if (success) {
                         // 绑定成功
-                        mainActivity?.startAnimation()
+                        //mainActivity?.startAnimation()
                         Toast.makeText(requireContext(), "服务已启动", Toast.LENGTH_SHORT).show()
                         // 更新 ViewModel
                         viewModel.updateSwitchState(hasPermission = true, isConnected = true)
                     } else {
                         // 绑定失败，回滚开关状态
                         setSwitchCheckedProgrammatically(false)
-                        mainActivity?.stopAnimation()
+                        //mainActivity?.stopAnimation()
                         Toast.makeText(requireContext(), "服务启动失败，请尝试重启应用或重新授权", Toast.LENGTH_LONG).show()
 
                         // 失败后，更新ViewModel为未连接
@@ -351,14 +440,6 @@ class HomeFragment : Fragment() {
             .show()
     }
 
-    /** * 原先的 bindNotificationService 已被 performBindWithRetry 替代，
-     * 这里保留一个简单的入口供其他地方调用（如果需要）
-     */
-    private fun bindNotificationService() {
-        // 这是一个兼容旧调用的空壳，逻辑已移至 handleUserSwitchChange
-        Ting.bindNotificationService(requireContext())
-    }
-
     private fun showNotificationDetail(log: NotificationLog) {
         MaterialAlertDialogBuilder(requireContext())
             .setTitle(log.appName)
@@ -389,5 +470,31 @@ class HomeFragment : Fragment() {
             packageName = "com.example.test",
         )
         viewModel.insertTestNotification(testLog)
+    }
+
+    private fun updateUnreadCount(newCount: Int) {
+        unreadCount = if (newCount < 0) 0 else newCount
+        updateUnreadUI()
+    }
+
+    private fun resetUnreadCount() {
+        unreadCount = 0
+        updateUnreadUI()
+    }
+
+    private fun updateUnreadUI() {
+        if (unreadCount > 0) {
+            // 有未读消息：显示数字，改变图标样式（可选）
+            btnUp.text = if (unreadCount > 99) "99+" else unreadCount.toString()
+            // 如果 btnUp 是 icon-only 模式，需要确保 text 可见
+            // 建议在 layout xml 中设置 btnUp 为 iconGravity="textStart"
+            btnUp.setIconResource(R.drawable.up1) // 保持向上箭头
+            // 可以改变背景色提示用户，例如变成强调色
+            // btnUp.setBackgroundColor(...)
+        } else {
+            // 无未读消息：清空文字，只显示图标
+            btnUp.text = ""
+            btnUp.setIconResource(R.drawable.up1)
+        }
     }
 }
