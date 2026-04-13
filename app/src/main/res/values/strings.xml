@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">听风test</string>
+    <string name="app_name">历史通知记录</string>
     <string name="version">版本 1.0.0</string>
 
     <string name="info">关于</string>
@@ -26,6 +26,8 @@
     </string>
     <string name="tips_function">
         此应用目前为测试版本\n
+        ColorOS自带类似功能，但是有些手机没有，所以做了一个，顺便学习用\n
+
         - 记录历史通知记录，可查询，防撤回（仅文本）
     </string>
 

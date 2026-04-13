@@ -47,6 +47,7 @@ class HomeFragment : Fragment() {
     private lateinit var searchEditText: TextInputEditText
     private lateinit var searchInputLayout: TextInputLayout
     private lateinit var serviceSwitch: MaterialSwitch
+    private lateinit var toolbarBackground:View
     private lateinit var btnTest: MaterialButton
     private lateinit var btnUp: MaterialButton
     private lateinit var btnSettings: MaterialButton
@@ -94,6 +95,8 @@ class HomeFragment : Fragment() {
         btnTest = binding.test
         btnUp = binding.goUpon
         btnSettings = binding.settings
+        toolbarBackground = binding.floatingToolbar
+
 
         // ****************************************************************************
         // 初始化 LayoutManager
@@ -251,7 +254,7 @@ class HomeFragment : Fragment() {
             searchInputLayout.visibility = View.GONE
         }
     }
-
+    /**展示设置底部弹窗 */
     private fun showSettingsBottomSheet() {
         val bottomSheetDialog = BottomSheetDialog(requireContext())
         val view = layoutInflater.inflate(R.layout.bottom_sheet_settings, null)
@@ -286,6 +289,7 @@ class HomeFragment : Fragment() {
                         Toast.makeText(requireContext(), "服务已启动", Toast.LENGTH_SHORT).show()
                         // 更新 ViewModel
                         viewModel.updateSwitchState(hasPermission = true, isConnected = true)
+                        //toolbarBackground.setBackgroundColor(R.drawable.bg_gradient_2)
                     } else {
                         // 绑定失败，回滚开关状态
                         setSwitchCheckedProgrammatically(false)

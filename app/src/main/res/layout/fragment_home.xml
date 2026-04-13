@@ -21,7 +21,7 @@
                 android:layout_height="match_parent"
                 app:navigationIcon="@drawable/search"
                 app:title="历史通知记录"
-                app:subtitle="随机一言将显示在这里"
+                app:subtitle="随机一言还没做"
                 android:visibility="visible" />
 
             <com.google.android.material.textfield.TextInputLayout
@@ -96,6 +96,7 @@
                 android:layout_height="wrap_content"
                 style="@style/Widget.Material3.Button.IconButton"
                 app:icon="@drawable/send"
+                android:visibility="gone"
                 android:contentDescription="button2"/>
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/settings"

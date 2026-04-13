@@ -1,4 +1,9 @@
 <resources>
+    <!-- 启动器背景颜色 -->
+    <color name="ic_launcher_bg_start">#1A237E</color>
+    <color name="ic_launcher_bg_end">#006064</color>
+    <color name="day_black_night_white">#E2E2E9</color>
+
     <color name="md_theme_primary">#ABC7FF</color>
     <color name="md_theme_onPrimary">#0C305F</color>
     <color name="md_theme_primaryContainer">#294677</color>

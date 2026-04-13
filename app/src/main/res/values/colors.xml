@@ -10,6 +10,10 @@
     <color name="blue_dark">#0D47A1</color>
     <color name="blue_dark2">#0D47A1</color>
     <color name="blue_to_white">#E1F5FE</color>
+    <!-- 启动器背景颜色 -->
+    <color name="ic_launcher_bg_start">#2979FF</color>
+    <color name="ic_launcher_bg_end">#00E5FF</color>
+    <color name="day_black_night_white">#000000</color>
 
     <!-- 背景色 -->
     <color name="background">#F5F7FA</color>
