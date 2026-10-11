@@ -6,4 +6,11 @@
     <dimen name="collapsed_height">56dp</dimen>
     <dimen name="expanded_height">200dp</dimen>
 
+    <!-- 浮动 Dock 实际高度约 88dp；额外 28dp 冗余，保证页面末尾可滚到 Dock 上方完整可见。 -->
+    <dimen name="floating_dock_content_inset">116dp</dimen>
+
+    <!-- 悬浮顶栏预留：actionBarSize(56dp) + 上边距(8dp) + 呼吸间距(12dp)。
+         列表第一张卡片从顶栏下方开始，滚动时可从顶栏背后穿过。 -->
+    <dimen name="floating_top_bar_inset">76dp</dimen>
+
 </resources>

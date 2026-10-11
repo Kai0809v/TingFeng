@@ -14,37 +14,6 @@ import kotlinx.coroutines.launch
 
 class HomeViewModel(private val notifyDao: NotifyDao) : ViewModel() {
 
-    // --- ⬇️ 使用 StateFlow 管理开关状态 ⬇️ ---
-    private val _switchState = MutableStateFlow(SwitchState())
-    val switchState: StateFlow<SwitchState> = _switchState.asStateFlow()
-
-    /**
-     * 更新开关状态，本质是通过创建新的 SwitchState 实例并替换旧实例实现的，而非直接修改 val 属性的值。
-     * @param hasPermission 是否有权限
-     * @param isConnected 是否已连接
-     */
-    fun updateSwitchState(hasPermission: Boolean, isConnected: Boolean) {
-        val newState = SwitchState(
-            hasPermission = hasPermission,
-            isConnected = isConnected,
-            shouldBeVisible = !(hasPermission && isConnected) // 有权限且连接时隐藏
-        )
-        _switchState.value = newState
-    }
-    data class SwitchState(
-        val hasPermission: Boolean = false,
-        val isConnected: Boolean = false,
-        val shouldBeVisible: Boolean = true
-    )
-
-    /** 这个没有严格要求 */
-    var switchShown: SwitchShown = SwitchShown()
-    /** 记录开关是否已经展示过一次，避免重复展示动画。 */
-    data class SwitchShown(
-        /** 是否已经展示过开关动画。 */
-        var hasShown: Boolean = false
-    )
-
     // 1. 用于接收和保存搜索查询词的私有 StateFlow
     private val _searchQuery = MutableStateFlow("")
 

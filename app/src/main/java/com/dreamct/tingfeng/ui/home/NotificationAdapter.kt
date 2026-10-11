@@ -1,9 +1,7 @@
 package com.dreamct.tingfeng.ui.home
 
-import android.icu.text.SimpleDateFormat
-import android.icu.util.Calendar
-import android.view.LayoutInflater
-import android.view.View
+import android.content.Context
+import android.graphics.drawable.Drawable
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
@@ -12,91 +10,97 @@ import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.dreamct.tingfeng.R
 import com.dreamct.tingfeng.data.NotificationLog
+import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-// --- ⬇️ 1. 创建 DiffUtil.ItemCallback ⬇️ ---
-class NotificationDiffCallback : DiffUtil.ItemCallback<NotificationLog>() {
-    /**
-     * 判断是否是同一个 item
-     * 通常使用数据的唯一 ID
-     */
-    override fun areItemsTheSame(oldItem: NotificationLog, newItem: NotificationLog): Boolean {
-        return oldItem.id == newItem.id
-    }
-
-    /**
-     * 判断同一个 item 的内容是否发生了变化
-     */
-    override fun areContentsTheSame(oldItem: NotificationLog, newItem: NotificationLog): Boolean {
-        // Kotlin 的 data class 会自动生成 equals 方法，可以直接比较
-        return oldItem == newItem
-    }
-}
-
-
-// --- ⬇️ 2. 修改 Adapter 继承自 ListAdapter ⬇️ ---
+/**
+ * 通知卡片堆栈适配器（Kotlin）。
+ *
+ * 交互回调：
+ *  - [onItemClick]：点击任意卡片区域打开完整通知详情
+ *  - 关闭按钮（onCloseClick）已暂时移除，恢复时取消各处注释即可：
+ *    构造参数、ViewHolder.closeButton、onBindViewHolder 中的点击监听，
+ *    以及 NotificationCardView 中的按钮构建代码。
+ */
 class NotificationAdapter(
     private val onItemClick: (NotificationLog) -> Unit
+    // 暂时移除删除逻辑，恢复时取消注释（需同步恢复 NotificationCardView 的关闭按钮）：
+    // private val onCloseClick: (NotificationLog) -> Unit
 ) : ListAdapter<NotificationLog, NotificationAdapter.ViewHolder>(NotificationDiffCallback()) {
 
-    // ViewHolder 类保持不变
-    class ViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        val appIcon: ImageView = itemView.findViewById(R.id.app_icon)
-        val appName: TextView = itemView.findViewById(R.id.notification_app_name)
-        val title: TextView = itemView.findViewById(R.id.notification_title)
-        val time: TextView = itemView.findViewById(R.id.notification_time)
-        val content: TextView = itemView.findViewById(R.id.notification_content)
+    class ViewHolder(val card: NotificationCardView) : RecyclerView.ViewHolder(card) {
+        val appIcon: ImageView = card.appIcon
+        val titleText: TextView = card.titleText
+        val timeText: TextView = card.timeText
+        val contentText: TextView = card.contentText
+        // val closeButton: ImageView = card.closeButton
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
-        val view = LayoutInflater.from(parent.context)
-            .inflate(R.layout.item_notification_card, parent, false)
-        return ViewHolder(view)
+        val card = NotificationCardView(parent.context).apply {
+            // 堆叠间距由布局管理器的 peek 统一控制，垂直边距保持 0
+            layoutParams = RecyclerView.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                val marginPx =
+                    (HFConfig.cardMarginHorizontalDp * resources.displayMetrics.density).toInt()
+                setMargins(marginPx, 0, marginPx, 0)
+            }
+        }
+        return ViewHolder(card)
     }
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-        // --- ⬇️ 3. 使用 getItem(position) 获取数据 ⬇️ ---
         val notification = getItem(position)
+        val context = holder.itemView.context
 
-        // 应用名
-        holder.appName.text = notification.appName
-        // 设置通知标题
-        holder.title.text = notification.title
-        // 格式化并设置时间
-        holder.time.text = formatTimestamp(notification.time)
-        // 设置通知内容
-        holder.content.text = notification.content
-        // 设置点击事件
-        holder.itemView.setOnClickListener {
-            onItemClick(notification)
+        // 应用图标：按包名加载真实图标，失败回退默认图标
+        loadAppIcon(context, notification.packageName)?.let {
+            holder.appIcon.setImageDrawable(it)
+        } ?: holder.appIcon.setImageResource(R.mipmap.ic_launcher)
+
+        holder.titleText.text = notification.title
+        holder.timeText.text = formatTimestamp(notification.time)
+        holder.contentText.text = notification.content
+
+        holder.itemView.setOnClickListener { onItemClick(notification) }
+        // 暂时移除删除逻辑：
+        // holder.closeButton.setOnClickListener { onCloseClick(notification) }
+
+        // 预留样式接口：数据绑定时回调（可在设置中自定义格式）
+        HFConfig.cardStyle.onCardBound(holder.card, notification)
+    }
+
+    /** 按包名加载应用图标（读不到返回 null） */
+    private fun loadAppIcon(context: Context, packageName: String): Drawable? = try {
+        context.packageManager.getApplicationIcon(packageName)
+    } catch (_: Exception) {
+        null
+    }
+
+    companion object {
+        /** 紧凑时间格式：今天 HH:mm，更早 MM/dd HH:mm */
+        fun formatTimestamp(timestamp: Long): String {
+            val now = Date()
+            val date = Date(timestamp)
+            val sameDay = SimpleDateFormat("yyyyMMdd", Locale.getDefault())
+                .format(now) == SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(date)
+            return if (sameDay) {
+                SimpleDateFormat("HH:mm", Locale.getDefault()).format(date)
+            } else {
+                SimpleDateFormat("MM/dd HH:mm", Locale.getDefault()).format(date)
+            }
         }
     }
+}
 
-    // --- ⬇️ 4. 移除 getItemCount() 和 updateData() ⬇️ ---
-    // ListAdapter 会自动处理 getItemCount()
-    // public fun submitList(list: List<NotificationLog>?) 是 ListAdapter 自带的更新方法
+/** DiffUtil：按 id 判断同一通知，内容变化时刷新 */
+class NotificationDiffCallback : DiffUtil.ItemCallback<NotificationLog>() {
+    override fun areItemsTheSame(oldItem: NotificationLog, newItem: NotificationLog): Boolean =
+        oldItem.id == newItem.id
 
-    private fun formatTimestamp(time: Long): String {
-        val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
-        val dateFormat = SimpleDateFormat("MM/dd", Locale.getDefault())
-        val date = Date(time)
-
-        return if (isToday(time)) {
-            "今天 ${timeFormat.format(date)}"
-        } else {
-            "${dateFormat.format(date)} ${timeFormat.format(date)}"
-        }
-    }
-
-    private fun isToday(time: Long): Boolean {
-        val today = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }.timeInMillis
-
-        return time >= today
-    }
+    override fun areContentsTheSame(oldItem: NotificationLog, newItem: NotificationLog): Boolean =
+        oldItem == newItem
 }

@@ -3,12 +3,53 @@
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:clipChildren="false">
     <!-- 代码中实现了android:fitsSystemWindows="true"-->
+    <!-- clipChildren=false：允许 appbar_scrim 上移绘制到状态栏区域（沉浸融合） -->
 
-    <com.google.android.material.appbar.AppBarLayout
+    <!-- 堆叠卡片列表：LayoutManager 由代码中的 StackedCardLayoutManager 设置。
+         全高铺满，卡片可从悬浮顶栏背后穿过（clipToPadding=false + paddingTop 预留顶栏空间） -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/cardRecyclerView"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+        android:layout_height="match_parent"
+        android:paddingTop="@dimen/floating_top_bar_inset"
+        android:paddingBottom="@dimen/floating_dock_content_inset"
+        android:clipToPadding="false"
+        android:orientation="vertical"/>
+
+    <!-- 顶栏沉浸背景：向上滚动时由代码驱动渐显，向上延伸覆盖状态栏，
+         与顶栏融合为整块背景；静态时完全透明（壁纸直接透出） -->
+    <View
+        android:id="@+id/appbar_scrim"
+        android:layout_width="match_parent"
+        android:layout_height="120dp"
+        android:alpha="0"
+        android:background="?attr/colorSurface" />
+
+    <!-- 顶栏融合完成后只露出的下边缘线（位置由代码按顶栏底边设定） -->
+    <View
+        android:id="@+id/appbar_divider"
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:alpha="0"
+        android:background="?attr/colorOutlineVariant" />
+
+    <!-- 悬浮顶栏：初始为居中胶囊（左右各缩进约 20% 宽、距状态栏下沿 16dp，
+         XML 中的边距仅为布局前的回退值，实际几何由代码按进度插值：
+         上滑时胶囊向左上扩展为全宽矩形顶栏，圆角收窄、轮廓由上往下擦除，
+         见 HomeFragment.applyTopBarGeometry / updateTopBarImmersive） -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/floating_top_bar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="80dp"
+        android:layout_marginTop="16dp"
+        app:cardCornerRadius="28dp"
+        app:cardElevation="0dp"
+        app:cardBackgroundColor="?attr/colorSurface"
+        app:strokeWidth="0dp">
 
         <FrameLayout
             android:id="@+id/topBarContainer"
@@ -44,32 +85,23 @@
             </com.google.android.material.textfield.TextInputLayout>
         </FrameLayout>
 
-        <com.google.android.material.materialswitch.MaterialSwitch
-            android:id="@+id/service_switch"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            app:thumbIcon="@null"
-            android:text="服务开关"
-            android:layout_gravity="center"/>
-
-
-    </com.google.android.material.appbar.AppBarLayout>
-
-    <!-- 用 RecyclerView替代ViewPager -->
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/cardRecyclerView"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
-        android:orientation="vertical"
-        app:layout_behavior="@string/appbar_scrolling_view_behavior"/>
+        <!-- 顶栏轮廓层：覆盖整个卡片（高度与内容区一致，不能用 match_parent——
+             会把 wrap_content 的卡片撑到全屏），滚动时由上往下擦除（不响应触摸） -->
+        <com.dreamct.tingfeng.ui.home.TopBarOutlineView
+            android:id="@+id/topBarOutline"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize" />
+    </com.google.android.material.card.MaterialCardView>
     <!-- 悬浮工具栏 -->
     <com.google.android.material.card.MaterialCardView
         android:id="@+id/floating_toolbar"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|end"
-        android:layout_margin="16dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="104dp"
         app:cardBackgroundColor="?attr/colorPrimaryContainer"
         app:cardCornerRadius="36dp"
         app:cardElevation="3dp"

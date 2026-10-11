@@ -1,42 +1,44 @@
 package com.dreamct.tingfeng.ui.home
 
-import android.content.Intent
 import android.os.Bundle
-import android.util.Log
+import android.graphics.drawable.ColorDrawable
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.style.RelativeSizeSpan
+import android.util.TypedValue
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Toast
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.doOnLayout
 import androidx.core.widget.doOnTextChanged
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.flowWithLifecycle
 import androidx.lifecycle.lifecycleScope
-import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.RecyclerView
 import androidx.transition.TransitionManager
-import com.dreamct.tingfeng.MainActivity
 import com.dreamct.tingfeng.R
 import com.dreamct.tingfeng.data.AppDatabase
 import com.dreamct.tingfeng.data.NotificationLog
 import com.dreamct.tingfeng.databinding.FragmentHomeBinding
 import com.dreamct.tingfeng.service.Ting
+import com.dreamct.tingfeng.service.TingConfig
 import com.dreamct.tingfeng.utilities.hasNotificationAccessPermission
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.card.MaterialCardView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import com.google.android.material.transition.MaterialFadeThrough
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 class HomeFragment : Fragment() {
     // ********************** ViewBinding **********************
@@ -46,14 +48,20 @@ class HomeFragment : Fragment() {
     private lateinit var appBar :MaterialToolbar
     private lateinit var searchEditText: TextInputEditText
     private lateinit var searchInputLayout: TextInputLayout
-    private lateinit var serviceSwitch: MaterialSwitch
-    private lateinit var toolbarBackground:View
     private lateinit var btnTest: MaterialButton
     private lateinit var btnUp: MaterialButton
     private lateinit var btnSettings: MaterialButton
     private lateinit var recyclerView: RecyclerView
+    private lateinit var appbarScrim: View
+    private lateinit var appbarDivider: View
+    private lateinit var topBarOutline: TopBarOutlineView
+    private lateinit var floatingTopBar: MaterialCardView
     private lateinit var viewModel: HomeViewModel
     private lateinit var notificationAdapter: NotificationAdapter
+    private lateinit var stackLayoutManager: StackedCardLayoutManager
+
+    // 顶栏沉浸进度缓存（-1 = 尚未初始化，强制首次应用）
+    private var topBarProgress = -1f
 
 
 
@@ -65,7 +73,6 @@ class HomeFragment : Fragment() {
         duration = 300
     }
     private val tag = "HomeFragment"
-    private var isSettingProgrammatically = false // 防止程序设置触发监听器
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -90,31 +97,49 @@ class HomeFragment : Fragment() {
         appBar = binding.topAppBar
         searchEditText = binding.searchEditText
         searchInputLayout = binding.searchInputLayout
-        serviceSwitch = binding.serviceSwitch
         recyclerView = binding.cardRecyclerView
         btnTest = binding.test
         btnUp = binding.goUpon
         btnSettings = binding.settings
-        toolbarBackground = binding.floatingToolbar
+        appbarScrim = binding.appbarScrim
+        appbarDivider = binding.appbarDivider
+        topBarOutline = binding.topBarOutline
+        // 轮廓颜色直接取自下边缘线的背景（主题色已在 XML 解析，避免引用 material R）
+        (appbarDivider.background as? ColorDrawable)?.let {
+            topBarOutline.outlineColor = it.color
+        }
+        floatingTopBar = binding.floatingTopBar
+
+        // 卡片样式引擎：把设置页"卡片样式"选择的样式应用到每个通知卡片
+        HFConfig.cardStyle = CardStyleEngine
 
 
         // ****************************************************************************
-        // 初始化 LayoutManager
-        val layoutManager = LinearLayoutManager(context)
-        recyclerView.layoutManager = layoutManager
+        // 初始化卡片堆栈 LayoutManager（通知面板式 Z 轴遮挡堆叠）
+        stackLayoutManager = StackedCardLayoutManager(requireContext())
+        recyclerView.layoutManager = stackLayoutManager
 
-// 跟上面的功能是相同的，不过需要在其他地方调用，所以单独弄出来设置
-//        recyclerView.apply {
-//            layoutManager = LinearLayoutManager(context)
-//            adapter = notificationAdapter
-//        }
-
-
-        notificationAdapter = NotificationAdapter() { selectedLog ->
-            showNotificationDetail(selectedLog)
-        }
+        notificationAdapter = NotificationAdapter(
+            onItemClick = { log -> handleCardClick(log) }
+            // 关闭按钮已暂时移除，删除逻辑保留备用（恢复时同步恢复 Adapter/CardView 注释）：
+            // onCloseClick = { log -> viewModel.deleteNotification(log) }
+        )
         // 在 adapter 初始化后设置
         recyclerView.adapter = notificationAdapter
+
+        // 堆叠重排时禁用默认条目动画，避免闪烁
+        recyclerView.itemAnimator = null
+
+        // 顶栏沉浸：滚动时渐显背景并与状态栏融为一体
+        setupTopBarImmersion()
+
+        // 栈顶卡片左右滑动消除（复现通知栏滑走通知的效果）
+        val swipeCallback = NotificationSwipeCallback(
+            layoutManager = stackLayoutManager,
+            getItem = { position -> notificationAdapter.currentList.getOrNull(position) },
+            onDismiss = { log -> viewModel.deleteNotification(log) }
+        )
+        ItemTouchHelper(swipeCallback).attachToRecyclerView(recyclerView)
 
 
 
@@ -125,7 +150,7 @@ class HomeFragment : Fragment() {
             override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
                 super.onScrolled(recyclerView, dx, dy)
 
-                val firstVisibleItemPosition = layoutManager.findFirstVisibleItemPosition()
+                val firstVisibleItemPosition = stackLayoutManager.frontCardPosition
 
                 // 逻辑 A：如果用户手动滑回顶部，清除未读计数
                 if (firstVisibleItemPosition == 0) {
@@ -153,8 +178,8 @@ class HomeFragment : Fragment() {
                 .flowWithLifecycle(lifecycle, Lifecycle.State.STARTED)
                 .collectLatest { notifications ->
                     // 在提交数据前，判断是否在浏览旧数据
-                    val layoutManager = recyclerView.layoutManager as LinearLayoutManager
-                    val firstVisiblePos = layoutManager.findFirstVisibleItemPosition()
+                    // （堆叠布局中 frontCardPosition 等价于原来的 firstVisibleItemPosition）
+                    val firstVisiblePos = stackLayoutManager.frontCardPosition
 
                     // 如果当前不在顶部（firstVisiblePos > 0），且新数据来了
                     // 注意：这里需要根据具体的 ListAdapter 差异比对逻辑。
@@ -182,25 +207,7 @@ class HomeFragment : Fragment() {
                 }
         }
 
-        // 观察 ViewModel 中的开关状态
-        lifecycleScope.launch {
-            viewModel.switchState
-                .flowWithLifecycle(lifecycle, Lifecycle.State.STARTED)
-                .collect { state ->
-                    updateSwitchUI(state)
-                }
-        }
-
-        // 设置开关监听器
-        serviceSwitch.setOnCheckedChangeListener { _, isChecked ->
-            if (isSettingProgrammatically) {
-                return@setOnCheckedChangeListener
-            }
-            handleUserSwitchChange(isChecked)
-        }
-
-        // 初始状态检查
-        checkAndUpdateSwitchState()
+        // 观察 ViewModel 中的开关状态（服务开关已迁移至设置页）
 
         // 监听搜索框的文本变化
         searchEditText.doOnTextChanged { text, _, _, _ ->
@@ -214,8 +221,7 @@ class HomeFragment : Fragment() {
 
         // 智能智能回到顶部
         btnUp.setOnClickListener {
-            val layoutManager = recyclerView.layoutManager as LinearLayoutManager
-            val firstVisiblePos = layoutManager.findFirstVisibleItemPosition()
+            val firstVisiblePos = stackLayoutManager.frontCardPosition
 
             // 阈值：超过 20 条视为“太远”
             val jumpThreshold = 20
@@ -254,6 +260,89 @@ class HomeFragment : Fragment() {
             searchInputLayout.visibility = View.GONE
         }
     }
+    // ------------------------- 顶栏沉浸（滚动渐显 + 与状态栏融合） -------------------------
+
+    /**
+     * 沉浸式顶栏（简单过渡）：
+     *  1. 静态：实色圆角顶栏贴于状态栏下沿，TopBarOutlineView 绘制完整轮廓；
+     *  2. 滚动中：scrim（覆盖状态栏 + 顶栏区域）渐显为 surface 色连成整块，
+     *     轮廓自上而下逐段擦除——上半段先"融入"状态栏；
+     *  3. 融合后：轮廓完全消失，过渡段末尾只渐显一条下边缘线。
+     * 整个过程由滚动偏移直接驱动（约 96dp 滑动完成），可逆、无跳变。
+     */
+    private fun setupTopBarImmersion() {
+        // 状态栏高度就绪后定位 scrim（负向平移进入状态栏区域）与下边缘线
+        ViewCompat.setOnApplyWindowInsetsListener(binding.root) { _, insets ->
+            val top = insets.getInsets(WindowInsetsCompat.Type.systemBars()).top
+            appbarScrim.translationY = -top.toFloat()
+            appbarScrim.layoutParams.height = top + topBarPillBottom()
+            appbarDivider.translationY = (topBarPillBottom() - 1).toFloat()
+            appbarScrim.requestLayout()
+            insets
+        }
+        recyclerView.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+            override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
+                updateTopBarImmersive()
+            }
+        })
+        updateTopBarImmersive()
+        // 布局完成后立即应用顶栏初始几何（居中胶囊），避免首帧使用 XML 回退边距
+        binding.root.doOnLayout { applyTopBarGeometry(topBarProgress.coerceIn(0f, 1f)) }
+    }
+
+    /** 悬浮顶栏底部在 fragment 坐标系中的位置（工具栏高度） */
+    private fun topBarPillBottom(): Int {
+        val tv = TypedValue()
+        val barHeight = if (requireContext().theme.resolveAttribute(
+                android.R.attr.actionBarSize, tv, true
+            )
+        ) {
+            TypedValue.complexToDimensionPixelSize(tv.data, resources.displayMetrics)
+        } else {
+            dp(56f).toInt()
+        }
+        return barHeight
+    }
+
+    /**
+     * 顶栏几何插值（progress: 0 = 悬浮胶囊, 1 = 全宽矩形顶栏）：
+     *  - 左右边距：父容器宽度各 20%（居中胶囊）→ 0（全宽），胶囊边缘向两侧扩展，
+     *    左上角随之上移——视觉上即"胶囊向左上移动展开成矩形顶栏"；
+     *  - 上边距：16dp（状态栏下沿之下）→ 0（贴住状态栏）；
+     *  - 圆角：28dp（胶囊）→ 0（矩形）；
+     *  - 轮廓：由上往下逐段擦除（TopBarOutlineView）。
+     * 修改初始圆角时需同步 fragment_home.xml 的 app:cardCornerRadius。
+     */
+    private fun applyTopBarGeometry(progress: Float) {
+        val parentView = floatingTopBar.parent as? ViewGroup ?: return
+        if (parentView.width == 0) return
+        val lp = floatingTopBar.layoutParams as ViewGroup.MarginLayoutParams
+        val remain = 1f - progress
+        val sideMargin = (parentView.width * 0.2f * remain).toInt()
+        lp.leftMargin = sideMargin
+        lp.rightMargin = sideMargin
+        lp.topMargin = (dp(16f) * remain).toInt()
+        floatingTopBar.layoutParams = lp
+        floatingTopBar.radius = dp(28f) * remain
+        topBarOutline.outlineProgress = progress
+    }
+
+    /** 按当前滚动偏移更新顶栏沉浸进度（0 = 悬浮胶囊，1 = 融合为矩形顶栏） */
+    private fun updateTopBarImmersive() {
+        val progress = (recyclerView.computeVerticalScrollOffset() / dp(96f))
+            .coerceIn(0f, 1f)
+        if (progress == topBarProgress) return
+        topBarProgress = progress
+        // 胶囊 → 矩形顶栏的几何过渡（边距、圆角、轮廓擦除）
+        applyTopBarGeometry(progress)
+        // scrim 渐显：状态栏 + 顶栏区域连成整块背景
+        appbarScrim.alpha = progress
+        // 融合后期（70% 之后）只渐显一条下边缘线
+        appbarDivider.alpha = ((progress - 0.7f) / 0.3f).coerceIn(0f, 1f)
+    }
+
+    private fun dp(v: Float): Float = v * resources.displayMetrics.density
+
     /**展示设置底部弹窗 */
     private fun showSettingsBottomSheet() {
         val bottomSheetDialog = BottomSheetDialog(requireContext())
@@ -263,185 +352,9 @@ class HomeFragment : Fragment() {
         bottomSheetDialog.show()
     }
 
-    /**
-     * 处理用户手动切换开关的操作
-     * 关键修改：增加异步状态检查和自动回滚逻辑
-     */
-    private fun handleUserSwitchChange(isChecked: Boolean) {
-        Log.d(tag, "User manually changed switch to: $isChecked")
-        val mainActivity = requireActivity() as? MainActivity
-
-        if (isChecked) {
-            // 用户尝试打开
-            if (!isNotificationServiceEnabled()) {
-                // 没有权限，回弹开关
-                setSwitchCheckedProgrammatically(false)
-                showPermissionDialog()
-            } else {
-                // 有权限，执行绑定流程（包含重试机制）
-                lifecycleScope.launch {
-                    // 1. 尝试绑定
-                    val success = performBindWithRetry()
-
-                    if (success) {
-                        // 绑定成功
-                        //mainActivity?.startAnimation()
-                        Toast.makeText(requireContext(), "服务已启动", Toast.LENGTH_SHORT).show()
-                        // 更新 ViewModel
-                        viewModel.updateSwitchState(hasPermission = true, isConnected = true)
-                        //toolbarBackground.setBackgroundColor(R.drawable.bg_gradient_2)
-                    } else {
-                        // 绑定失败，回滚开关状态
-                        setSwitchCheckedProgrammatically(false)
-                        //mainActivity?.stopAnimation()
-                        Toast.makeText(requireContext(), "服务启动失败，请尝试重启应用或重新授权", Toast.LENGTH_LONG).show()
-
-                        // 失败后，更新ViewModel为未连接
-                        viewModel.updateSwitchState(hasPermission = true, isConnected = false)
-                    }
-                }
-            }
-        } else {
-            // 用户手动关闭
-            mainActivity?.stopAnimation()
-            Toast.makeText(requireContext(), "服务监控已暂停", Toast.LENGTH_SHORT).show()
-
-            // 注意：NotificationListenerService 很难真正"停止"，
-            // 这里主要是逻辑上的停止（不再更新UI/不再记录），或者可以在Service中增加一个静态开关 flag
-
-            viewModel.updateSwitchState(hasPermission = isNotificationServiceEnabled(), isConnected = false)
-        }
-    }
-
-    /**
-     * 辅助方法：程序化设置 Switch 状态，不触发监听器
-     */
-    private fun setSwitchCheckedProgrammatically(checked: Boolean) {
-        isSettingProgrammatically = true
-        serviceSwitch.isChecked = checked
-        isSettingProgrammatically = false
-    }
-
-    /**
-     * 执行绑定逻辑，带重试和强力重连机制
-     * @return Boolean 是否连接成功
-     */
-    private suspend fun performBindWithRetry(): Boolean {
-        return withContext(Dispatchers.Main) {
-            // 1. 第一次尝试：普通重连
-            Ting.bindNotificationService(requireContext())
-
-            // 等待检查 (轮询 2秒)
-            if (waitForConnection(2000)) return@withContext true
-
-            Log.w(tag, "普通绑定失败，尝试强力重连...")
-
-            // 2. 第二次尝试：强力重连 (切换组件状态)
-            // 注意：这需要 Ting Service 中有 toggleNotificationListenerService 方法
-            try {
-                Ting.toggleNotificationListenerService(requireContext())
-            } catch (e: Exception) {
-                Log.e(tag, "强力重连异常", e)
-            }
-
-            // 再次等待检查 (轮询 3秒，强力重连通常需要更长时间)
-            if (waitForConnection(3000)) return@withContext true
-
-            return@withContext false
-        }
-    }
-
-    /**
-     * 轮询检查连接状态
-     */
-    private suspend fun waitForConnection(timeoutMs: Long): Boolean {
-        val startTime = System.currentTimeMillis()
-        while (System.currentTimeMillis() - startTime < timeoutMs) {
-            if (Ting.isConnected) {
-                return true
-            }
-            delay(200) // 每200ms检查一次
-        }
-        return false
-    }
-
-    private fun checkAndUpdateSwitchState() {
-        val hasPermission = isNotificationServiceEnabled()
-        val isConnected = Ting.isConnected
-        viewModel.updateSwitchState(hasPermission, isConnected)
-    }
-
-    private fun updateSwitchUI(state: HomeViewModel.SwitchState) {
-        // 防止程序设置触发监听器
-        isSettingProgrammatically = true
-
-        if (state.shouldBeVisible) {
-            if (serviceSwitch.visibility != View.VISIBLE) {
-                showSwitchWithAnimation()
-                viewModel.switchShown.hasShown = false
-            }
-            // 只有当状态真的改变时才重新设置，避免动画闪烁
-            if (serviceSwitch.isChecked != (state.hasPermission && state.isConnected)) {
-                serviceSwitch.isChecked = state.hasPermission && state.isConnected
-            }
-        } else {
-            if (serviceSwitch.visibility != View.GONE) {
-                if (!viewModel.switchShown.hasShown) {
-                    hideSwitchWithAnimation()
-                    viewModel.switchShown.hasShown = true
-                } else {
-                    serviceSwitch.visibility = View.GONE
-                }
-            }
-        }
-        isSettingProgrammatically = false
-    }
-
-    private fun showSwitchWithAnimation() {
-        serviceSwitch.visibility = View.VISIBLE
-        serviceSwitch.alpha = 0f
-        serviceSwitch.scaleX = 0.8f
-        serviceSwitch.scaleY = 0.8f
-
-        serviceSwitch.animate()
-            .alpha(1f)
-            .scaleX(1f)
-            .scaleY(1f)
-            .setDuration(300)
-            .start()
-    }
-
-    private fun hideSwitchWithAnimation() {
-        serviceSwitch.animate()
-            .alpha(0f)
-            .scaleX(0.8f)
-            .scaleY(0.8f)
-            .setDuration(300)
-            .withEndAction {
-                serviceSwitch.visibility = View.GONE
-                serviceSwitch.alpha = 1f
-                serviceSwitch.scaleX = 1f
-                serviceSwitch.scaleY = 1f
-            }
-            .start()
-    }
-
-    private fun isNotificationServiceEnabled(): Boolean {
-        return hasNotificationAccessPermission(requireContext())
-    }
-
-    private fun showPermissionDialog() {
-        MaterialAlertDialogBuilder(requireContext())
-            .setTitle("需要通知访问权限")
-            .setMessage("此功能需要访问通知的权限。请点击确定前往设置页面开启权限。")
-            .setPositiveButton("确定") { _, _ ->
-                val intent = Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS")
-                startActivity(intent)
-            }
-            .setNegativeButton("取消") { dialog, _ ->
-                dialog.dismiss()
-            }
-            .show()
+    /** Clicking any notification card opens its full details. */
+    private fun handleCardClick(log: NotificationLog) {
+        showNotificationDetail(log)
     }
 
     private fun showNotificationDetail(log: NotificationLog) {
@@ -454,15 +367,36 @@ class HomeFragment : Fragment() {
 
     override fun onResume() {
         super.onResume()
-        checkAndUpdateSwitchState()
+        // 从设置页返回时刷新服务状态徽标（与设置页"服务监控"开关联动）
+        updateServiceStatusBadge()
     }
 
     override fun onDestroyView() {
         super.onDestroyView()
-        if (::serviceSwitch.isInitialized) {
-            serviceSwitch.setOnCheckedChangeListener(null)
-        }
         _binding = null
+    }
+
+    /**
+     * 顶栏"历史通知记录"旁的服务运行状态文本（🟢 运行中 / 🔴 未运行）。
+     * 判定与设置页"服务监控"开关完全一致：通知访问权限 + 服务连接（[Ting.isConnected]）。
+     * 实现为标题内联 span（紧随标题、自动跟随布局），状态部分缩小字号。
+     */
+    private fun updateServiceStatusBadge() {
+        val b = _binding ?: return
+        // 判定与设置页"服务监控"开关一致：权限 + 连接 + 未被手动暂停（持久化）
+        val running = hasNotificationAccessPermission(requireContext()) && Ting.isConnected &&
+                !TingConfig.servicePaused(requireContext())
+        val title = "历史通知记录"
+        val status = if (running) "🟢 运行中" else "🔴 未运行"
+        val separator = "   "
+        val text = SpannableString("$title$separator$status")
+        text.setSpan(
+            RelativeSizeSpan(0.62f),
+            title.length + separator.length,
+            text.length,
+            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+        )
+        b.topAppBar.title = text
     }
 
     private fun insertTestNotification() {

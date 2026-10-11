@@ -8,14 +8,13 @@
     android:paddingLeft="@dimen/activity_horizontal_margin"
     android:paddingRight="@dimen/activity_horizontal_margin"
     tools:context=".ui.login.LoginActivity"
-    android:background="?android:attr/windowBackground">
+    android:background="@drawable/bg_login_gradient">
 
     <fragment
         android:id="@+id/fragment_container"
         android:name="androidx.navigation.fragment.NavHostFragment"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="?android:attr/windowBackground"
         app:defaultNavHost="true"
         app:navGraph="@navigation/page_login"
 

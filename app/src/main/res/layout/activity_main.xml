@@ -5,44 +5,25 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <!-- 状态栏背景容器 -->
+    <!-- 沉浸式：状态栏区域透明，壁纸/背景直接透出。
+         此处仅保留服务开关气泡动画的锚点（默认宽 0 不可见）。 -->
     <FrameLayout
-        android:id="@+id/status_bar_bg"
+        android:id="@+id/paopao_anchor"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
 
-        <!-- 圆角矩形 -->
+        <!-- 气泡条：宽度由动画控制（0 → 90dp），默认不可见 -->
         <View
             android:id="@+id/status_bar"
             android:layout_width="0dp"
             android:layout_height="30dp"
-
             android:layout_marginTop="2dp"
             android:layout_gravity="center"
-
             android:background="@drawable/bg_gradient_1" />
-        <!--取消垂直边距android:layout_marginVertical="6dp"-->
     </FrameLayout>
-
-    <com.google.android.material.bottomnavigation.BottomNavigationView
-        android:id="@+id/nav_view"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="0dp"
-        android:layout_marginEnd="0dp"
-        android:background="@color/md_theme_surfaceContainer"
-
-        app:itemIconSize="24dp"
-        app:itemTextAppearanceActive="@style/xuanZhong"
-        app:itemTextAppearanceInactive="@style/qiYong"
-
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintLeft_toLeftOf="parent"
-        app:layout_constraintRight_toRightOf="parent"
-        app:menu="@menu/bottom_nav_menu" />
 
     <fragment
         android:id="@+id/nav_host_fragment_activity_main"
@@ -52,9 +33,17 @@
         android:layout_height="0dp"
         app:defaultNavHost="true"
 
-        app:layout_constraintTop_toBottomOf="@id/status_bar_bg"
-        app:layout_constraintBottom_toTopOf="@id/nav_view"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"/>
+
+    <androidx.compose.ui.platform.ComposeView
+        android:id="@+id/floating_dock"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

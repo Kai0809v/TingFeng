@@ -123,7 +123,9 @@ class Ting : NotificationListenerService() {
         CoroutineScope(Dispatchers.Main).launch {
             delay(5000) // 冷却 5 秒
 
-            if (!isConnected && hasNotificationAccessPermission(applicationContext)) {
+            if (!isConnected && hasNotificationAccessPermission(applicationContext) &&
+                !TingConfig.servicePaused(applicationContext)
+            ) {
                 Log.d(tag, "尝试自动恢复连接...")
                 try {
                     requestRebind(ComponentName(applicationContext, Ting::class.java))
@@ -137,6 +139,8 @@ class Ting : NotificationListenerService() {
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         // 排除自身通知，防止循环记录
         if (sbn.packageName == packageName) return
+        // 用户手动暂停（持久化）时不记录新通知
+        if (TingConfig.servicePaused(applicationContext)) return
         process(sbn)
     }
 

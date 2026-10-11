@@ -17,7 +17,8 @@
     TextInputLayout（外）是容器，负责外观和布局
     TextInputEditText （内）是实际的输入控件，负责输入行为和内容控制
     -->
-    <style name="size_waiKuang">
+    <!-- 外框：M3 OutlinedBox 圆角样式，描边/提示用主题色 -->
+    <style name="size_waiKuang" parent="Widget.Material3.TextInputLayout.OutlinedBox">
         <item name="android:layout_width">0dp</item>
         <!-- 宽度为0dp，表示宽度由父容器决定 -->
         <!--需确保容器留有足够的空间显示帮助文本，不要被输入控件全部占据了-->
@@ -26,15 +27,26 @@
         <item name="counterEnabled">true</item>
         <item name="counterMaxLength">16</item>
 
+        <item name="boxCornerRadiusTopStart">14dp</item>
+        <item name="boxCornerRadiusTopEnd">14dp</item>
+        <item name="boxCornerRadiusBottomStart">14dp</item>
+        <item name="boxCornerRadiusBottomEnd">14dp</item>
+        <item name="boxStrokeColor">@color/md_theme_primary</item>
+        <item name="hintTextColor">@color/md_theme_primary</item>
+        <item name="counterTextColor">@color/md_theme_onSurfaceVariant</item>
+        <item name="helperTextTextColor">@color/md_theme_onSurfaceVariant</item>
     </style>
+    <!-- 内框：文字用深色，保证在浅色渐变背景上可读 -->
     <style name="size_neiKuang">
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">wrap_content</item>
+        <item name="android:textColor">@color/md_theme_onSurface</item>
     </style>
 
 
     <style name="account_waiKuang" parent="size_waiKuang">
         <item name="startIconDrawable">@drawable/account0</item>
+        <item name="startIconTint">@color/md_theme_primary</item>
         <item name="android:hint">@string/prompt_account</item>
         <item name="android:maxLines">1</item>
         <item name="endIconMode">clear_text</item>
@@ -47,6 +59,7 @@
 
     <style name="password_waiKuang" parent="size_waiKuang">
         <item name="startIconDrawable">@drawable/lock</item>
+        <item name="startIconTint">@color/md_theme_primary</item>
         <item name="endIconMode">password_toggle</item>
         <item name="endIconDrawable">@drawable/selector_visibility</item>
         <item name="errorEnabled">false</item>

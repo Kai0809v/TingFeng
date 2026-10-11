@@ -1,32 +1,28 @@
 package com.dreamct.tingfeng;
 
 import android.animation.ValueAnimator;
-import android.annotation.SuppressLint;
 import android.content.Context;
-import android.content.res.Configuration;
+import android.graphics.Color;
 import android.os.Bundle;
-import android.view.Menu;
 import android.view.View;
-import android.view.ViewGroup;
-import android.widget.FrameLayout;
 
 import androidx.activity.EdgeToEdge;
+import androidx.activity.SystemBarStyle;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.navigation.NavController;
 import androidx.navigation.Navigation;
-import androidx.navigation.ui.AppBarConfiguration;
-import androidx.navigation.ui.NavigationUI;
 
-import com.google.android.material.navigation.NavigationBarView;
 import com.dreamct.tingfeng.databinding.ActivityMainBinding;
+import com.dreamct.tingfeng.service.TingConfig;
+import com.dreamct.tingfeng.ui.navigation.FloatingDockInstaller;
+import com.dreamct.tingfeng.utilities.WallpaperApplier;
 
 public class MainActivity extends AppCompatActivity {
 
     private ActivityMainBinding binding;
-    private int lastSelectedId = R.id.navigation_home; // 记录上次选中的ID
     //public boolean showStatusbar = false;
     private View Paopao;
     // 声明气泡视图目标宽度，因为在独立的方法中，又要在OnCreate中取值，所以要在这里声明
@@ -35,121 +31,34 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        EdgeToEdge.enable(this);
+        // 沉浸式：状态栏/导航栏透明，壁纸与应用背景直接延伸到系统栏后面；
+        // 图标固定深色（应用为浅色主题，深色模式适配后再调整）。
+        EdgeToEdge.enable(this, SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT));
 
         binding = ActivityMainBinding.inflate(getLayoutInflater());//绑定布局
         setContentView(binding.getRoot());
-        // 处理窗口内边距，需要找到View对象的id，在此处为fragment的id
+
+        // 壁纸 flag 已由主题（Theme.FoundationX.Wallpaper）在窗口创建时声明；
+        // 这里只需铺设遮罩层（透明度调节只作用于背景壁纸，不影响界面组件）
+        WallpaperApplier.apply(this, TingConfig.wallpaperVisibility(this));
+        // Fragment 内容避开系统栏：顶部留出状态栏高度（状态栏区域透出壁纸，
+        // 与应用界面融合），底部留出导航栏高度；浮动 Dock 自己处理系统栏内边距。
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.nav_host_fragment_activity_main), (v, insets) -> {
             Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-            v.setPadding(systemBars.left, 0, systemBars.right, systemBars.bottom);//将顶部padding改为了0
+            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
             return insets;
         });
 
-        // 获取状态栏高度
-        int statusBarHeight = getStatusBarHeight();
-        // 设置状态栏背景高度
-        FrameLayout statusBarBg = binding.statusBarBg;
-        // 初始化气泡视图目标宽度
+        // 初始化气泡视图目标宽度（服务开关时的气泡动画）
         targetWidthOfPaopao = dpToPx(this, 90); // 90dp 转换为像素
 
-
-        ViewGroup.LayoutParams params = statusBarBg.getLayoutParams();
-        params.height = statusBarHeight;
-        statusBarBg.setLayoutParams(params);
-
-// 移除原有的 BottomNavigationView 声明，替换为以下代码
-        NavigationBarView navBarView; // 使用父类 NavigationBarView 兼容两种导航视图
-        int orientation = getResources().getConfiguration().orientation;
-        if (orientation == Configuration.ORIENTATION_LANDSCAPE) {
-            // 横屏：使用 NavigationRailView (id 为 nav_rail)
-            navBarView = findViewById(R.id.nav_rail);
-        } else {
-            // 竖屏：使用 BottomNavigationView (id 为 nav_view)
-            navBarView = findViewById(R.id.nav_view);
-        }
-        navBarView.setLabelVisibilityMode(NavigationBarView.LABEL_VISIBILITY_LABELED);
-
-        Menu menu = navBarView.getMenu(); // 原 navBarView 替换为 navBarView
-        menu.getItem(0).setTitle(null);
-        menu.getItem(2).setTitle(null);
-
-        AppBarConfiguration appBarConfiguration = new AppBarConfiguration.Builder(
-                R.id.navigation_utils, R.id.navigation_home, R.id.navigation_notifications)
-                .build();
         NavController navController = Navigation.findNavController(this, R.id.nav_host_fragment_activity_main);
-
-        //上面这里定义了NavController，然后下面这里把它和BottomNavigationView绑定起来，
-        //这是绑定顶部导航栏的，现在使用无actionbar，再使用这行代码会导致崩溃
-        // NavigationUI.setupActionBarWithNavController(this, navController, appBarConfiguration);
-
-        NavigationUI.setupWithNavController(navBarView, navController);//绑定底部导航栏
-
-        // 添加选中监听器，并添加防止快速重复点击的逻辑
-        navBarView.setOnItemSelectedListener(item -> {
-            int itemId = item.getItemId();
-
-            // 如果点击的是当前已选中的项，则忽略
-            if (itemId == lastSelectedId) {
-                return false;
-            }
-
-            // 更新最后选中的ID
-            lastSelectedId = itemId;
-
-            // 重置所有标题
-            for (int i = 0; i < menu.size(); i++) {
-                menu.getItem(i).setTitle(null);
-            }
-
-            // 设置新标题
-            if (itemId == R.id.navigation_home) {
-                item.setTitle(getString(R.string.title_home));
-            } else if (itemId == R.id.navigation_utils) {
-                item.setTitle(getString(R.string.title_utils));
-            } else if (itemId == R.id.navigation_notifications) {
-                item.setTitle(getString(R.string.settings));
-            }
-
-            // 执行导航
-            return NavigationUI.onNavDestinationSelected(item, navController);
-        });
-
-        // 保留目的地监听器（用于处理返回按钮等情况）
-        navController.addOnDestinationChangedListener((controller, destination, arguments) -> {
-            // 更新最后选中的ID
-            lastSelectedId = destination.getId();
-
-            // 重置所有标题
-            for (int i = 0; i < menu.size(); i++) {
-                menu.getItem(i).setTitle(null);
-            }
-
-            // 设置当前标题
-            int destId = destination.getId();
-            if (destId == R.id.navigation_home) {
-                menu.findItem(R.id.navigation_home).setTitle(getString(R.string.title_home));
-            } else if (destId == R.id.navigation_utils) {
-                menu.findItem(R.id.navigation_utils).setTitle(getString(R.string.title_utils));
-            } else if (destId == R.id.navigation_notifications) {
-                menu.findItem(R.id.navigation_notifications).setTitle(getString(R.string.settings));
-            }
-        });
-
+        FloatingDockInstaller.install(binding.floatingDock, navController);
 
         Paopao = binding.statusBar;
 //        FrameLayout.LayoutParams paoLayoutParams = (FrameLayout.LayoutParams) Paopao.getLayoutParams();
 //        paoLayoutParams.width = 120;
 
-    }
-    // 获取系统状态栏高度的方法
-    private int getStatusBarHeight() {
-        int result = 0;
-        @SuppressLint("InternalInsetResource") int resourceId = getResources().getIdentifier("status_bar_height", "dimen", "android");
-        if (resourceId > 0) {
-            result = getResources().getDimensionPixelSize(resourceId);
-        }
-        return result;
     }
 
     // 添加动画方法，添加空检查

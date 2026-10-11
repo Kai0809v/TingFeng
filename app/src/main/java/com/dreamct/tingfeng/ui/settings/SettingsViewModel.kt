@@ -1,21 +1,17 @@
-package com.dreamct.tingfeng.ui.settings;
+package com.dreamct.tingfeng.ui.settings
 
-import androidx.lifecycle.LiveData;
-import androidx.lifecycle.MutableLiveData;
-import androidx.lifecycle.ViewModel;
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.ViewModel
 
-public class SettingsViewModel extends ViewModel {
+class SettingsViewModel : ViewModel() {
 
-    private final MutableLiveData<String> mText;
-    public SettingsViewModel() {
-        mText = new MutableLiveData<>();
-        mText.setValue("为了更稳定的运行\n" +
-                "        建议在设置-耗电管理中允许应用后台行为\n" +
-                "        耗电量并不高\n" +
-                "        在转为前台服务前，未必管用");
-    }
+    private val _text = MutableLiveData(
+        "为了更稳定的运行\n" +
+                "建议在设置-耗电管理中允许应用后台行为\n" +
+                "耗电量并不高\n" +
+                "在转为前台服务前，未必管用"
+    )
 
-    public LiveData<String> getText() {
-        return mText;
-    }
+    val text: LiveData<String> = _text
 }
