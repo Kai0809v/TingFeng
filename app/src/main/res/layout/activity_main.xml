@@ -25,18 +25,22 @@
             android:background="@drawable/bg_gradient_1" />
     </FrameLayout>
 
-    <fragment
-        android:id="@+id/nav_host_fragment_activity_main"
-        android:name="androidx.navigation.fragment.NavHostFragment"
-        app:navGraph="@navigation/mobile_navigation"
+    <!-- 此容器有状态栏高度的 padding（代码中设置），
+         关闭裁剪以允许 fragment 内容（顶栏）延伸进状态栏区域。
+         ViewPager2 常驻三个 tab 页（工具/主页/设置，懒加载），
+         Dock 点击切换，无 Navigation 导航栈。 -->
+    <androidx.viewpager2.widget.ViewPager2
+        android:id="@+id/main_pager"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        app:defaultNavHost="true"
 
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"/>
+        app:layout_constraintEnd_toEndOf="parent"
+
+        android:clipChildren="false"
+        android:clipToPadding="false"/>
 
     <androidx.compose.ui.platform.ComposeView
         android:id="@+id/floating_dock"

@@ -1,17 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.core.widget.NestedScrollView
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:clipToPadding="false"
-    android:paddingBottom="@dimen/floating_dock_content_inset">
+    android:clipChildren="false"
+    android:clipToPadding="false">
+
+    <!-- 内容滚动容器（下层）：顶栏常驻悬浮其上，上划内容滑到顶栏背后被遮住
+         （clipToPadding=false）；顶部 padding 由代码按状态栏+顶栏高度设置 -->
+    <androidx.core.widget.NestedScrollView
+        android:id="@+id/settings_scroll"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:clipToPadding="false"
+        android:paddingBottom="@dimen/floating_dock_content_inset">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="16dp">
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="16dp">
 
         <!-- ======================== 用户卡片 ======================== -->
         <com.google.android.material.card.MaterialCardView
@@ -20,8 +30,7 @@
             app:cardCornerRadius="18dp"
             app:cardElevation="6dp"
             app:strokeColor="@color/md_theme_primaryContainer"
-            app:strokeWidth="3dp"
-            android:layout_marginTop="8dp">
+            app:strokeWidth="3dp">
 
             <RelativeLayout
                 android:layout_width="match_parent"
@@ -121,6 +130,7 @@
                             android:textColor="?attr/colorOnSurface" />
 
                         <TextView
+                            android:id="@+id/wallpaper_source_description"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="2dp"
@@ -133,6 +143,139 @@
                         android:id="@+id/wallpaper_switch"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content" />
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginStart="56dp"
+                    android:background="?attr/colorOutlineVariant" />
+
+                <!-- 应用内壁纸：作为独立背景源替换应用背景 -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:padding="16dp"
+                    android:gravity="center_vertical">
+
+                    <ImageView
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:src="@drawable/dashboard"
+                        android:layout_marginEnd="16dp"
+                        android:contentDescription="应用内壁纸"
+                        app:tint="?attr/colorOnSurfaceVariant" />
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="应用内壁纸"
+                            android:textSize="16sp"
+                            android:textColor="?attr/colorOnSurface" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="选取图片作为应用背景"
+                            android:textSize="12sp"
+                            android:textColor="?attr/colorOnSurfaceVariant" />
+                    </LinearLayout>
+
+                    <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/app_wallpaper_switch"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:paddingStart="56dp"
+                    android:paddingEnd="16dp"
+                    android:paddingBottom="12dp">
+
+                    <ImageView
+                        android:id="@+id/app_wallpaper_preview"
+                        android:layout_width="52dp"
+                        android:layout_height="52dp"
+                        android:background="?attr/colorSurfaceVariant"
+                        android:contentDescription="应用内壁纸预览"
+                        android:padding="14dp"
+                        android:src="@drawable/dashboard"
+                        android:scaleType="centerCrop"
+                        app:tint="?attr/colorOnSurfaceVariant" />
+
+                    <TextView
+                        android:id="@+id/app_wallpaper_status"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginStart="12dp"
+                        android:text="尚未选择图片"
+                        android:textSize="13sp"
+                        android:textColor="?attr/colorOnSurfaceVariant" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/app_wallpaper_select"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:minWidth="0dp"
+                        android:text="选择图片" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/app_wallpaper_alpha_section"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingStart="56dp"
+                    android:paddingEnd="16dp"
+                    android:paddingBottom="16dp"
+                    android:visibility="gone">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="应用内壁纸不透明度"
+                            android:textSize="14sp"
+                            android:textColor="?attr/colorOnSurface" />
+
+                        <TextView
+                            android:id="@+id/app_wallpaper_alpha_text"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="100%"
+                            android:textSize="14sp"
+                            android:textColor="?attr/colorPrimary" />
+                    </LinearLayout>
+
+                    <com.google.android.material.slider.Slider
+                        android:id="@+id/app_wallpaper_alpha_slider"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:valueFrom="0"
+                        android:valueTo="100"
+                        android:stepSize="1"
+                        android:value="100" />
                 </LinearLayout>
 
                 <View
@@ -186,7 +329,7 @@
                     <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="调节背景壁纸的显示强度（0%~100%），不影响界面组件"
+                        android:text="调节系统壁纸的显示强度（0%~100%）；启用应用内壁纸时，此设置暂停生效"
                         android:textSize="12sp"
                         android:textColor="?attr/colorOnSurfaceVariant" />
                 </LinearLayout>
@@ -297,13 +440,35 @@
                             android:id="@+id/rb_card_style_blur"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="高斯模糊（磨砂玻璃）" />
+                            android:text="纯色半透明" />
 
-                        <RadioButton
-                            android:id="@+id/rb_card_style_liquid"
+                        <!-- 纯色半透明滑块：雾度（仅"纯色半透明"选中时展开，
+                             紧跟该选项下方，展开/折叠有过渡动画） -->
+                        <LinearLayout
+                            android:id="@+id/blur_frost_panel"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="液态玻璃（建议搭配非浅色背景使用）" />
+                            android:orientation="vertical"
+                            android:paddingHorizontal="16dp"
+                            android:visibility="gone">
+
+                            <com.google.android.material.slider.Slider
+                                android:id="@+id/blur_frost_slider"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:valueFrom="0"
+                                android:valueTo="100"
+                                android:stepSize="1"
+                                android:value="65" />
+
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="雾度越高卡片越不透明，越低越清透（透出页面背景）"
+                                android:textSize="12sp"
+                                android:textColor="?attr/colorOnSurfaceVariant" />
+                        </LinearLayout>
 
                         <RadioButton
                             android:id="@+id/rb_card_style_custom"
@@ -312,6 +477,24 @@
                             android:enabled="false"
                             android:text="自定义图片（开发中）" />
                     </RadioGroup>
+
+                    <!-- 实时预览：一张真实通知卡片，样式切换/滑块拖动即时生效 -->
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:paddingHorizontal="16dp"
+                        android:text="效果预览（样式与滑块即时生效）"
+                        android:textSize="12sp"
+                        android:textColor="?attr/colorOnSurfaceVariant" />
+
+                    <LinearLayout
+                        android:id="@+id/card_style_preview_container"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:paddingHorizontal="16dp"
+                        android:paddingTop="8dp" />
                 </LinearLayout>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
@@ -384,6 +567,64 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:checked="false" />
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginStart="56dp"
+                    android:background="?attr/colorOutlineVariant" />
+
+                <!-- 通知过滤：点击弹出底部面板（屏蔽指定应用 / 关键词屏蔽，
+                     由主页悬浮工具栏的旧 BottomSheet 入口迁移至此） -->
+                <LinearLayout
+                    android:id="@+id/filter_entry"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:padding="16dp"
+                    android:gravity="center_vertical"
+                    android:background="?attr/selectableItemBackground"
+                    android:clickable="true"
+                    android:focusable="true">
+
+                    <ImageView
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:src="@drawable/list1"
+                        android:layout_marginEnd="16dp"
+                        android:contentDescription="通知过滤"
+                        app:tint="?attr/colorOnSurfaceVariant" />
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="通知过滤"
+                            android:textSize="16sp"
+                            android:textColor="?attr/colorOnSurface" />
+
+                        <TextView
+                            android:id="@+id/filter_summary"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="屏蔽指定应用与关键词，命中即不记录"
+                            android:textSize="12sp"
+                            android:textColor="?attr/colorOnSurfaceVariant" />
+                    </LinearLayout>
+
+                    <ImageView
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:src="@drawable/ic_expand_more"
+                        android:rotation="270"
+                        android:contentDescription="进入"
+                        app:tint="?attr/colorOnSurfaceVariant" />
                 </LinearLayout>
 
                 <View
@@ -800,4 +1041,48 @@
             android:textColor="?attr/colorOnSurfaceVariant" />
 
     </LinearLayout>
-</androidx.core.widget.NestedScrollView>
+
+    </androidx.core.widget.NestedScrollView>
+
+    <!-- 顶栏：与统计页/主页同款悬浮圆角卡片，负 margin 越界延伸进状态栏
+         （insets、父链关裁剪、内容避让均由 SettingsFragment 代码处理，
+         padding 仅为布局前回退值） -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/settings_top_bar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:cardCornerRadius="24dp"
+        app:cardElevation="0dp"
+        app:cardBackgroundColor="?attr/colorSurface"
+        app:strokeWidth="0dp">
+
+        <LinearLayout
+            android:id="@+id/settings_top_bar_content"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingStart="20dp"
+            android:paddingEnd="20dp"
+            android:paddingTop="56dp"
+            android:paddingBottom="12dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="设置"
+                android:textColor="?attr/colorOnSurface"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:maxLines="1"/>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="壁纸 · 样式 · 通知过滤"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                android:textSize="13sp"
+                android:maxLines="1"/>
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+</FrameLayout>

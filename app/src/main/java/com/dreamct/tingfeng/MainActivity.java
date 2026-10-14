@@ -5,20 +5,26 @@ import android.content.Context;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.view.View;
+import android.view.ViewGroup;
 
 import androidx.activity.EdgeToEdge;
+import androidx.activity.OnBackPressedCallback;
 import androidx.activity.SystemBarStyle;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
-import androidx.navigation.NavController;
-import androidx.navigation.Navigation;
+import androidx.viewpager2.widget.ViewPager2;
+
+import androidx.fragment.app.Fragment;
 
 import com.dreamct.tingfeng.databinding.ActivityMainBinding;
-import com.dreamct.tingfeng.service.TingConfig;
+import com.dreamct.tingfeng.ui.home.CardStyleEngine;
+import com.dreamct.tingfeng.ui.home.HomeFragment;
 import com.dreamct.tingfeng.ui.navigation.FloatingDockInstaller;
-import com.dreamct.tingfeng.utilities.WallpaperApplier;
+import com.dreamct.tingfeng.ui.navigation.MainPagerAdapter;
+import com.dreamct.tingfeng.ui.navigation.TopBarAnimatable;
+import com.dreamct.tingfeng.utilities.AppWallpaperApplier;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -28,37 +34,127 @@ public class MainActivity extends AppCompatActivity {
     // 声明气泡视图目标宽度，因为在独立的方法中，又要在OnCreate中取值，所以要在这里声明
     int targetWidthOfPaopao;
 
+    // 顶栏入场动画：记录上次页位置（初始 = 冷启动主页），onPageSelected 时
+    // 与目标页不同才算真正切页（setCurrentItem 在 callback 注册之前执行，
+    // 冷启动回调不会到达本 callback；部分设备还会补发初始位置的回调，
+    // 因此不能用「首次回调跳过」标志，必须按位置变化判断）
+    private int lastSelectedTopBarPage = MainPagerAdapter.POSITION_HOME;
+
+    // 切页后新页视图尚未创建（懒加载首切）时挂起的待播动画页位置（-1 = 无）
+    private int pendingTopBarEntrance = -1;
+
+    /**
+     * 刷新主页所有通知卡片样式（设置页样式/滑块变化后调用）：
+     * ViewPager2 常驻架构下主页视图不随切页销毁重建，必须主动重应用样式。
+     * 遍历 FragmentManager 中所有 fragment（含已 detach 的），对主页视图树
+     * 逐个重应用当前配置。
+     */
+    public void refreshHomeCards() {
+        for (Fragment f : getSupportFragmentManager().getFragments()) {
+            if (f instanceof HomeFragment && f.getView() != null) {
+                CardStyleEngine.refreshAttachedCards(f.getView());
+            }
+        }
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        // 沉浸式：状态栏/导航栏透明，壁纸与应用背景直接延伸到系统栏后面；
-        // 图标固定深色（应用为浅色主题，深色模式适配后再调整）。
+        // 沉浸式：状态栏/导航栏透明，壁纸与应用背景直接延伸到系统栏后面。
+        // 状态栏图标外观不在此定死：各 Fragment 按顶栏实际背景色自适应
+        // （utilities.SystemBars.applyStatusBarIconAppearance），暗色主题下
+        // 顶栏为深色 colorSurface → 浅色图标，避免黑底黑图标不可见。
         EdgeToEdge.enable(this, SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT));
 
         binding = ActivityMainBinding.inflate(getLayoutInflater());//绑定布局
         setContentView(binding.getRoot());
 
-        // 壁纸 flag 已由主题（Theme.FoundationX.Wallpaper）在窗口创建时声明；
-        // 这里只需铺设遮罩层（透明度调节只作用于背景壁纸，不影响界面组件）
-        WallpaperApplier.apply(this, TingConfig.wallpaperVisibility(this));
+        // 应用内图片优先；未启用时恢复透出的系统壁纸与其透明度遮罩。
+        AppWallpaperApplier.applyConfigured(this);
+
+        // 三个 tab 页常驻 ViewPager2（懒加载：启动仅创建主页，其余页首次切换才建，
+        // 之后切换零重建）。禁用滑动手势：页面切换只由底部 Dock 驱动。
+        binding.mainPager.setAdapter(new MainPagerAdapter(this));
+        binding.mainPager.setUserInputEnabled(false);
+        // 默认起点 = 主页 tab（位置 1）
+        binding.mainPager.setCurrentItem(MainPagerAdapter.POSITION_HOME, false);
+
         // Fragment 内容避开系统栏：顶部留出状态栏高度（状态栏区域透出壁纸，
         // 与应用界面融合），底部留出导航栏高度；浮动 Dock 自己处理系统栏内边距。
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.nav_host_fragment_activity_main), (v, insets) -> {
+        ViewCompat.setOnApplyWindowInsetsListener(binding.mainPager, (v, insets) -> {
             Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
             return insets;
         });
 
-        // 初始化气泡视图目标宽度（服务开关时的气泡动画）
-        targetWidthOfPaopao = dpToPx(this, 90); // 90dp 转换为像素
+        // 关闭 pager 内部 RecyclerView 的裁剪：主页顶栏负 margin 越界延伸进
+        // 状态栏区域，HomeFragment.setupTopBarImmersion 会沿父链向上关闭裁剪
+        // （含此 RecyclerView），但该循环在页面 onViewCreated 才执行，这里
+        // 布局后补齐兜底，保证首次进入时越界绘制不被裁。
+        binding.mainPager.post(() -> {
+            View inner = binding.mainPager.getChildAt(0);
+            if (inner instanceof ViewGroup) {
+                ViewGroup g = (ViewGroup) inner;
+                g.setClipChildren(false);
+                g.setClipToPadding(false);
+            }
+        });
 
-        NavController navController = Navigation.findNavController(this, R.id.nav_host_fragment_activity_main);
-        FloatingDockInstaller.install(binding.floatingDock, navController);
+        // Dock 点击 → pager 切页；Dock 选中态由 OnPageChangeCallback 驱动
+        FloatingDockInstaller.install(binding.floatingDock, binding.mainPager);
+
+        // 切页顶栏过渡：新页顶栏从屏幕外滑入（页面实现 TopBarAnimatable，
+        // translationY 位移不透壁纸）。视图已建则立即播，未建（懒加载首切）
+        // 则挂起待 Fragment 视图创建后经 consumePendingTopBarEntrance 领取。
+        binding.mainPager.registerOnPageChangeCallback(new ViewPager2.OnPageChangeCallback() {
+            @Override
+            public void onPageSelected(int position) {
+                // 与上次页相同 = 冷启动初始/补发回调，不算切页，不播动画
+                if (position == lastSelectedTopBarPage) return;
+                lastSelectedTopBarPage = position;
+                pendingTopBarEntrance = position;
+                // FragmentStateAdapter 的 fragment tag 约定为 "f" + itemId（默认 = position）
+                Fragment f = getSupportFragmentManager().findFragmentByTag("f" + position);
+                if (f instanceof TopBarAnimatable && f.getView() != null) {
+                    ((TopBarAnimatable) f).playTopBarEntrance();
+                    pendingTopBarEntrance = -1;
+                }
+            }
+        });
+
+        // 返回键：非主页 tab 先回主页 tab，再按系统默认退出
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                if (binding.mainPager.getCurrentItem() != MainPagerAdapter.POSITION_HOME) {
+                    binding.mainPager.setCurrentItem(MainPagerAdapter.POSITION_HOME, false);
+                } else {
+                    setEnabled(false);
+                    getOnBackPressedDispatcher().onBackPressed();
+                    setEnabled(true);
+                }
+            }
+        });
 
         Paopao = binding.statusBar;
+
+        // 初始化气泡视图目标宽度（服务开关时的气泡动画）
+        targetWidthOfPaopao = dpToPx(this, 90); // 90dp 转换为像素
 //        FrameLayout.LayoutParams paoLayoutParams = (FrameLayout.LayoutParams) Paopao.getLayoutParams();
 //        paoLayoutParams.width = 120;
 
+    }
+
+    /**
+     * Fragment 视图创建晚于切页回调时，领取待播的顶栏入场动画（取走即清）。
+     * 懒加载下切页只创建目标页，第一个来领取的即目标页。
+     */
+    public boolean consumePendingTopBarEntrance() {
+        if (pendingTopBarEntrance >= 0) {
+            pendingTopBarEntrance = -1;
+            return true;
+        }
+        return false;
     }
 
     // 添加动画方法，添加空检查

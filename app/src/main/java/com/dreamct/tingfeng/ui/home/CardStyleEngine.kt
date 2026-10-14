@@ -16,15 +16,14 @@ import com.dreamct.tingfeng.service.TingConfig
  * 样式类型（与设置页单选项一一对应）：
  *  - [TYPE_DYNAMIC]  动态颜色：跟随系统主题取 colorPrimary 同色系渐变；
  *  - [TYPE_GRADIENT] 渐变配色：[GRADIENT_PRESETS] 中的预设（设置页以扇形色卡展示）；
- *  - [TYPE_BLUR]     高斯模糊：半透明磨砂近似（真实的壁纸背景模糊需 RenderEffect，
- *                    API 31+ 截取壁纸区域处理，后续实现）；
- *  - [TYPE_LIQUID]   液态玻璃：高透白渐变 + 白描边 + 文字投影；
+ *  - [TYPE_BLUR]     纯色半透明：可调半透明雾白叠层（雾度由设置页滑块控制）；
  *  - [TYPE_CUSTOM]   用户自定义图片（上传指定规格图片）——占位，功能后续开发，
  *                    当前回退为动态颜色。
  *
  * 用法：HomeFragment 中 `HFConfig.cardStyle = CardStyleEngine`，
- * 卡片创建时（[onCardCreated]）自动应用当前配置；设置更改后回到主页时
- * Fragment 视图重建、卡片重新创建，样式随之刷新。
+ * 卡片创建时（[onCardCreated]）自动应用当前配置；设置页更改样式/滑块后
+ * 由 [refreshAttachedCards] 实时刷新主页已常驻的卡片（ViewPager2 下主页
+ * 视图不随切页重建，必须主动重应用）。
  */
 object CardStyleEngine : HFConfig.NotificationCardStyle {
 
@@ -32,7 +31,6 @@ object CardStyleEngine : HFConfig.NotificationCardStyle {
     const val TYPE_DYNAMIC = "dynamic"
     const val TYPE_GRADIENT = "gradient"
     const val TYPE_BLUR = "blur"
-    const val TYPE_LIQUID = "liquid"
     const val TYPE_CUSTOM = "custom"
 
     /** 渐变配色预设：[id] 持久化到 TingConfig，[name] 展示在设置页色卡下方 */
@@ -60,7 +58,6 @@ object CardStyleEngine : HFConfig.NotificationCardStyle {
     fun applyStyle(card: NotificationCardView) {
         when (TingConfig.cardStyleType(card.context)) {
             TYPE_BLUR -> applyBlur(card)
-            TYPE_LIQUID -> applyLiquid(card)
             TYPE_GRADIENT ->
                 applyGradientColors(card, findPreset(TingConfig.cardGradientId(card.context)).colors)
             // TODO(TYPE_CUSTOM): 用户自定义图片背景（上传指定规格图片），功能后续开发
@@ -81,26 +78,35 @@ object CardStyleEngine : HFConfig.NotificationCardStyle {
         setTextColors(card, light = true, shadow = false)
     }
 
-    /** 高斯模糊（磨砂玻璃近似）：半透明白 + 深色文字 */
+    /**
+     * 纯色半透明：白色雾度渐变，无轮廓。
+     * 雾度（透明程度）由设置页滑块控制（[TingConfig.cardBlurFrost]）：
+     * 越高雾度越重、越不透明，越低越清透（透出更多页面背景）。
+     */
     private fun applyBlur(card: NotificationCardView) {
         card.setCardBackgroundColor(Color.TRANSPARENT)
+        val frost = TingConfig.cardBlurFrost(card.context).coerceIn(0f, 1f)
+        // 雾度：清透（低 alpha 白）→ 重雾度（接近不透明白）
+        val topAlpha = 0x38 + ((0xB8 - 0x38) * frost).toInt()
+        val bottomAlpha = 0x30 + ((0xA0 - 0x30) * frost).toInt()
         card.styleContainer.background = buildDrawable(
             card,
-            intArrayOf(0xE8FFFFFF.toInt(), 0xD2FFFFFF.toInt()),
-            strokeColor = 0x1F1B1B1F.toInt()
+            intArrayOf(
+                setAlpha(0xFFFFFF, topAlpha),
+                setAlpha(0xF2F5F9, bottomAlpha) // 高雾度时轻微冷灰，质感更柔和
+            ),
+            strokeColor = 0 // 不描边（用户要求去掉卡片轮廓）
         )
         setTextColors(card, light = false)
     }
 
-    /** 液态玻璃：高透白渐变 + 白描边 + 浅色文字投影 */
-    private fun applyLiquid(card: NotificationCardView) {
-        card.setCardBackgroundColor(Color.TRANSPARENT)
-        card.styleContainer.background = buildDrawable(
-            card,
-            intArrayOf(0x66FFFFFF.toInt(), 0x2EFFFFFF.toInt(), 0x14FFFFFF.toInt()),
-            strokeColor = 0x59FFFFFF.toInt()
-        )
-        setTextColors(card, light = true, shadow = true)
+    /** 把当前样式重新应用到视图树中所有已附加的通知卡片（样式配置变更后调用）。 */
+    @JvmStatic
+    fun refreshAttachedCards(root: View) {
+        if (root is NotificationCardView) applyStyle(root)
+        if (root is android.view.ViewGroup) {
+            for (index in 0 until root.childCount) refreshAttachedCards(root.getChildAt(index))
+        }
     }
 
     /** 构建圆角渐变背景（圆角与卡片一致；strokeColor 传 0 表示不描边） */
@@ -142,6 +148,10 @@ object CardStyleEngine : HFConfig.NotificationCardStyle {
 
     private fun lerp(a: Int, b: Int, ratio: Float): Int =
         (a * (1f - ratio) + b * ratio).toInt().coerceIn(0, 255)
+
+    /** 保留颜色 RGB，替换 alpha（0~255） */
+    private fun setAlpha(color: Int, alpha: Int): Int =
+        Color.argb(alpha.coerceIn(0, 255), Color.red(color), Color.green(color), Color.blue(color))
 
     /**
      * 解析主题属性颜色（属性值可能是字面量或资源引用），

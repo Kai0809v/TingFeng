@@ -41,35 +41,39 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.navigation.NavController
-import androidx.navigation.NavOptions
+import androidx.viewpager2.widget.ViewPager2
 import com.dreamct.tingfeng.R
 
-/** Installs the Compose dock in the existing Activity/Fragment navigation shell. */
+/** Installs the Compose dock in the existing Activity pager shell. */
 object FloatingDockInstaller {
     @JvmStatic
-    fun install(composeView: ComposeView, navController: NavController) {
+    fun install(composeView: ComposeView, pager: ViewPager2) {
         composeView.setViewCompositionStrategy(
             ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed
         )
         composeView.setContent {
-            FloatingDockContent(navController)
+            FloatingDockContent(pager)
         }
     }
 }
 
 private data class DockDestination(
-    val id: Int,
+    /** 对应 [MainPagerAdapter] 的页位置 */
+    val position: Int,
     val labelRes: Int,
     val iconRes: Int,
     val selectedIconRes: Int
 )
 
 private val dockDestinations = listOf(
-    DockDestination(R.id.navigation_utils, R.string.title_utils, R.drawable.time0, R.drawable.time1),
-    DockDestination(R.id.navigation_home, R.string.title_home, R.drawable.list0, R.drawable.list1),
     DockDestination(
-        R.id.navigation_notifications,
+        MainPagerAdapter.POSITION_UTILS,
+        R.string.title_statistics,
+        R.drawable.time0,
+        R.drawable.time1),
+    DockDestination(MainPagerAdapter.POSITION_HOME, R.string.title_home, R.drawable.list0, R.drawable.list1),
+    DockDestination(
+        MainPagerAdapter.POSITION_SETTINGS,
         R.string.settings,
         R.drawable.settings0,
         R.drawable.settings
@@ -77,18 +81,21 @@ private val dockDestinations = listOf(
 )
 
 @Composable
-private fun FloatingDockContent(navController: NavController) {
-    var selectedDestination by remember(navController) {
-        mutableIntStateOf(navController.currentDestination?.id ?: R.id.navigation_home)
+private fun FloatingDockContent(pager: ViewPager2) {
+    // 选中态跟随 pager 当前页（含 setCurrentItem 程序切换）
+    var selectedDestination by remember(pager) {
+        mutableIntStateOf(pager.currentItem)
     }
 
-    DisposableEffect(navController) {
-        val listener = NavController.OnDestinationChangedListener { _, destination, _ ->
-            selectedDestination = destination.id
+    DisposableEffect(pager) {
+        val callback = object : ViewPager2.OnPageChangeCallback() {
+            override fun onPageSelected(position: Int) {
+                selectedDestination = position
+            }
         }
-        navController.addOnDestinationChangedListener(listener)
+        pager.registerOnPageChangeCallback(callback)
         onDispose {
-            navController.removeOnDestinationChangedListener(listener)
+            pager.unregisterOnPageChangeCallback(callback)
         }
     }
 
@@ -127,9 +134,10 @@ private fun FloatingDockContent(navController: NavController) {
             dockDestinations.forEach { destination ->
                 DockItem(
                     destination = destination,
-                    selected = selectedDestination == destination.id,
+                    selected = selectedDestination == destination.position,
                     onClick = {
-                        navigateToTopLevel(navController, destination.id)
+                        // 瞬切（无平滑滑动）：页面切换保持即时响应
+                        pager.setCurrentItem(destination.position, false)
                     }
                 )
             }
@@ -182,15 +190,4 @@ private fun DockItem(
             maxLines = 1
         )
     }
-}
-
-private fun navigateToTopLevel(navController: NavController, destinationId: Int) {
-    if (navController.currentDestination?.id == destinationId) return
-
-    val options = NavOptions.Builder()
-        .setLaunchSingleTop(true)
-        .setRestoreState(true)
-        .setPopUpTo(navController.graph.startDestinationId, inclusive = false, saveState = true)
-        .build()
-    navController.navigate(destinationId, null, options)
 }

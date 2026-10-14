@@ -4,7 +4,18 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:padding="16dp">
+    android:paddingStart="16dp"
+    android:paddingEnd="16dp"
+    android:paddingBottom="16dp">
+
+    <!-- 抽屉把手：提示可下拉关闭 -->
+    <View
+        android:layout_width="40dp"
+        android:layout_height="4dp"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="12dp"
+        android:background="@drawable/handle_bar" />
 
     <!-- 标题 -->
     <com.google.android.material.textview.MaterialTextView
@@ -127,11 +138,12 @@
                     android:textColor="?attr/colorOnSurfaceVariant"
                     android:padding="16dp" />
 
-                <!-- 这里可以通过 RecyclerView 动态添加已屏蔽的应用 -->
-                <androidx.recyclerview.widget.RecyclerView
-                    android:id="@+id/recycler_blocked_apps"
+                <!-- 已屏蔽应用列表（动态行：应用名 + 移除按钮） -->
+                <LinearLayout
+                    android:id="@+id/layout_blocked_list"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:orientation="vertical"
                     android:visibility="gone" />
 
             </LinearLayout>

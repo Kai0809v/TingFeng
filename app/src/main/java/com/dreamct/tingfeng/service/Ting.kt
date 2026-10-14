@@ -141,6 +141,8 @@ class Ting : NotificationListenerService() {
         if (sbn.packageName == packageName) return
         // 用户手动暂停（持久化）时不记录新通知
         if (TingConfig.servicePaused(applicationContext)) return
+        // 用户屏蔽的应用：直接忽略，不解析不记录
+        if (TingConfig.blockedPackages(applicationContext).contains(sbn.packageName)) return
         process(sbn)
     }
 
@@ -153,6 +155,17 @@ class Ting : NotificationListenerService() {
             val content = extras.getString(Notification.EXTRA_TEXT, "")
 
             if (title.isNullOrEmpty() && content.isNullOrEmpty()) return
+
+            // 关键词屏蔽：标题或内容命中任一关键词即不记录
+            val keywords = TingConfig.blockedKeywords(applicationContext)
+            if (keywords.isNotEmpty()) {
+                val hit = keywords.any { keyword ->
+                    keyword.isNotEmpty() &&
+                            (title?.contains(keyword, ignoreCase = true) == true ||
+                                    content?.contains(keyword, ignoreCase = true) == true)
+                }
+                if (hit) return
+            }
 
             val appName = try {
                 applicationContext.packageManager.getApplicationLabel(

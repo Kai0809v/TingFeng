@@ -6,7 +6,8 @@
     android:layout_height="match_parent"
     android:clipChildren="false">
     <!-- 代码中实现了android:fitsSystemWindows="true"-->
-    <!-- clipChildren=false：允许 appbar_scrim 上移绘制到状态栏区域（沉浸融合） -->
+    <!-- clipChildren=false：允许顶栏卡片融合时向上越出本布局边界，
+         延伸到状态栏区域（nav_host 也需关闭裁剪，见 activity_main.xml） -->
 
     <!-- 堆叠卡片列表：LayoutManager 由代码中的 StackedCardLayoutManager 设置。
          全高铺满，卡片可从悬浮顶栏背后穿过（clipToPadding=false + paddingTop 预留顶栏空间） -->
@@ -19,62 +20,73 @@
         android:clipToPadding="false"
         android:orientation="vertical"/>
 
-    <!-- 顶栏沉浸背景：向上滚动时由代码驱动渐显，向上延伸覆盖状态栏，
-         与顶栏融合为整块背景；静态时完全透明（壁纸直接透出） -->
-    <View
-        android:id="@+id/appbar_scrim"
-        android:layout_width="match_parent"
-        android:layout_height="120dp"
-        android:alpha="0"
-        android:background="?attr/colorSurface" />
-
-    <!-- 顶栏融合完成后只露出的下边缘线（位置由代码按顶栏底边设定） -->
-    <View
-        android:id="@+id/appbar_divider"
-        android:layout_width="match_parent"
-        android:layout_height="1dp"
-        android:alpha="0"
-        android:background="?attr/colorOutlineVariant" />
-
-    <!-- 悬浮顶栏：初始为居中胶囊（左右各缩进约 20% 宽、距状态栏下沿 16dp，
-         XML 中的边距仅为布局前的回退值，实际几何由代码按进度插值：
-         上滑时胶囊向左上扩展为全宽矩形顶栏，圆角收窄、轮廓由上往下擦除，
-         见 HomeFragment.applyTopBarGeometry / updateTopBarImmersive） -->
+    <!-- 悬浮顶栏：与统计页同款圆角卡片（24dp 圆角下缘露圆弧）、全宽、
+         常驻覆盖状态栏区域（代码中上边距 = -状态栏高度），随滚动压缩
+         高度与字号（展开 128dp → 压缩 64dp），
+         见 HomeFragment.applyTopBarGeometry / updateTopBarImmersive -->
     <com.google.android.material.card.MaterialCardView
         android:id="@+id/floating_top_bar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginHorizontal="80dp"
-        android:layout_marginTop="16dp"
-        app:cardCornerRadius="28dp"
+        app:cardCornerRadius="24dp"
         app:cardElevation="0dp"
         app:cardBackgroundColor="?attr/colorSurface"
         app:strokeWidth="0dp">
 
+        <!-- 顶栏内容容器：高度由代码按滚动进度插值（展开 128dp → 压缩 64dp），
+             XML 高度仅为布局前回退值；容器常驻下移状态栏高度，
+             内容行始终钉在状态栏之下 -->
         <FrameLayout
             android:id="@+id/topBarContainer"
             android:layout_width="match_parent"
-            android:layout_height="?attr/actionBarSize">
+            android:layout_height="128dp">
 
-            <com.google.android.material.appbar.MaterialToolbar
-                android:id="@+id/topAppBar"
+            <!-- 标题块：垂直居中；展开态标题/副标题居中大字（水平平移由代码
+                 驱动），压缩态靠左小字；搜索态时整块隐藏（见 search_input_layout） -->
+            <LinearLayout
+                android:id="@+id/title_block"
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                app:navigationIcon="@drawable/search"
-                app:title="历史通知记录"
-                app:subtitle="随机一言还没做"
-                android:visibility="visible" />
+                android:layout_height="wrap_content"
+                android:layout_gravity="start|center_vertical"
+                android:orientation="vertical"
+                android:paddingHorizontal="16dp">
 
+                <TextView
+                    android:id="@+id/bar_title"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="历史通知记录"
+                    android:textColor="?attr/colorOnSurface"
+                    android:textSize="24sp"
+                    android:textStyle="bold"
+                    android:maxLines="1"/>
+
+                <TextView
+                    android:id="@+id/bar_subtitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="随机一言还没做"
+                    android:textColor="?attr/colorOnSurfaceVariant"
+                    android:textSize="15sp"
+                    android:maxLines="1"/>
+            </LinearLayout>
+
+            <!-- 内嵌搜索框：与标题块同层互斥显示（搜索态 GONE/VISIBLE 切换，
+                 点击搜索图标即时切换，复用同一个列表原地过滤，无页面导航开销）；
+                 marginEnd 预留右上角固定按钮空间 -->
             <com.google.android.material.textfield.TextInputLayout
                 android:id="@+id/search_input_layout"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginHorizontal="16dp"
-                android:layout_marginVertical="0dp"
+                android:layout_gravity="center_vertical"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="64dp"
                 android:visibility="gone"
-                app:startIconDrawable="@drawable/arrow_back"
+                style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense"
+                app:startIconDrawable="@drawable/search"
                 app:endIconMode="clear_text"
                 android:hint="搜索通知...">
+
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/search_edit_text"
                     android:layout_width="match_parent"
@@ -83,15 +95,34 @@
                     android:inputType="text"
                     android:maxLines="1"/>
             </com.google.android.material.textfield.TextInputLayout>
-        </FrameLayout>
 
-        <!-- 顶栏轮廓层：覆盖整个卡片（高度与内容区一致，不能用 match_parent——
-             会把 wrap_content 的卡片撑到全屏），滚动时由上往下擦除（不响应触摸） -->
-        <com.dreamct.tingfeng.ui.home.TopBarOutlineView
-            android:id="@+id/topBarOutline"
-            android:layout_width="match_parent"
-            android:layout_height="?attr/actionBarSize" />
+            <!-- 搜索按钮：固定右上角，不随顶栏压缩（点击切换搜索态：
+                 search ↔ close 图标互切） -->
+            <ImageButton
+                android:id="@+id/bar_search_button"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_gravity="top|end"
+                android:layout_margin="10dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@drawable/search"
+                app:tint="?attr/colorOnSurface"
+                android:contentDescription="搜索通知"/>
+        </FrameLayout>
     </com.google.android.material.card.MaterialCardView>
+
+    <!-- 搜索空态提示：搜索态下过滤结果为空时显示（非搜索态隐藏） -->
+    <TextView
+        android:id="@+id/search_empty_view"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:drawableTop="@drawable/search"
+        android:drawablePadding="12dp"
+        android:drawableTint="?attr/colorOnSurfaceVariant"
+        android:text="没有匹配的通知"
+        android:textColor="?attr/colorOnSurfaceVariant"
+        android:visibility="gone"/>
     <!-- 悬浮工具栏 -->
     <com.google.android.material.card.MaterialCardView
         android:id="@+id/floating_toolbar"
@@ -130,14 +161,6 @@
                 app:icon="@drawable/send"
                 android:visibility="gone"
                 android:contentDescription="button2"/>
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/settings"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                style="@style/Widget.Material3.Button.IconButton"
-                app:icon="@drawable/settings1"
-                app:iconTint="?attr/colorAccent"
-                android:contentDescription="@string/settings"/>
 
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>

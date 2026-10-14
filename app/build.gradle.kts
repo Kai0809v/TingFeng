@@ -13,8 +13,8 @@ android {
         applicationId = "com.dreamct.tingfeng"
         minSdk = 24
         targetSdk = 36
-        versionCode = 2
-        versionName = "1.1"
+        versionCode = 3
+        versionName = "0.1.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         signingConfig = signingConfigs.getByName("debug")
@@ -62,6 +62,7 @@ dependencies {
     implementation(libs.lifecycle.viewmodel.ktx)
     implementation(libs.navigation.fragment)
     implementation(libs.navigation.ui)
+    implementation(libs.viewpager2)
     implementation(libs.annotation)
     implementation(libs.activity)
     implementation(libs.androidx.appcompat)

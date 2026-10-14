@@ -1,7 +1,8 @@
 package com.dreamct.tingfeng.ui.home
 
+import android.content.Context
 import android.os.Bundle
-import android.graphics.drawable.ColorDrawable
+import android.view.inputmethod.InputMethodManager
 import android.text.SpannableString
 import android.text.Spanned
 import android.text.style.RelativeSizeSpan
@@ -9,9 +10,14 @@ import android.util.TypedValue
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.animation.DecelerateInterpolator
+import android.widget.TextView
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.activity.OnBackPressedCallback
+import androidx.core.view.doOnAttach
 import androidx.core.view.doOnLayout
+import androidx.core.view.doOnPreDraw
 import androidx.core.widget.doOnTextChanged
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
@@ -20,48 +26,66 @@ import androidx.lifecycle.flowWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.RecyclerView
-import androidx.transition.TransitionManager
 import com.dreamct.tingfeng.R
+import com.dreamct.tingfeng.MainActivity
 import com.dreamct.tingfeng.data.AppDatabase
 import com.dreamct.tingfeng.data.NotificationLog
 import com.dreamct.tingfeng.databinding.FragmentHomeBinding
 import com.dreamct.tingfeng.service.Ting
 import com.dreamct.tingfeng.service.TingConfig
+import com.dreamct.tingfeng.ui.navigation.TopBarAnimatable
+import com.dreamct.tingfeng.utilities.AppWallpaperApplier
+import com.dreamct.tingfeng.utilities.applyStatusBarIconAppearance
 import com.dreamct.tingfeng.utilities.hasNotificationAccessPermission
-import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.google.android.material.textfield.TextInputEditText
-import com.google.android.material.textfield.TextInputLayout
-import com.google.android.material.transition.MaterialFadeThrough
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
-class HomeFragment : Fragment() {
+class HomeFragment : Fragment(), TopBarAnimatable {
+
+    private companion object {
+        /** 顶栏展开态内容高度（dp）：标题/副标题大字、整体居中 */
+        private const val CONTENT_EXPANDED_DP = 128f
+
+        /** 顶栏压缩态内容高度（dp）：标题/副标题小字靠左，等高 Material 顶栏 */
+        private const val CONTENT_COLLAPSED_DP = 64f
+        private const val TITLE_SP_EXPANDED = 24f
+        private const val TITLE_SP_COLLAPSED = 16f
+        private const val SUBTITLE_SP_EXPANDED = 15f
+        private const val SUBTITLE_SP_COLLAPSED = 12f
+    }
     // ********************** ViewBinding **********************
     private var _binding: FragmentHomeBinding? = null
     private val binding get() = _binding!!
     // ********************** Component **********************
-    private lateinit var appBar :MaterialToolbar
-    private lateinit var searchEditText: TextInputEditText
-    private lateinit var searchInputLayout: TextInputLayout
+    private lateinit var titleBlock: View
+    private lateinit var barTitle: TextView
+    private lateinit var barSubtitle: TextView
     private lateinit var btnTest: MaterialButton
     private lateinit var btnUp: MaterialButton
-    private lateinit var btnSettings: MaterialButton
     private lateinit var recyclerView: RecyclerView
-    private lateinit var appbarScrim: View
-    private lateinit var appbarDivider: View
-    private lateinit var topBarOutline: TopBarOutlineView
     private lateinit var floatingTopBar: MaterialCardView
     private lateinit var viewModel: HomeViewModel
     private lateinit var notificationAdapter: NotificationAdapter
     private lateinit var stackLayoutManager: StackedCardLayoutManager
+    private lateinit var backCallback: OnBackPressedCallback
+
+    // 内嵌搜索态：true = 顶栏显示搜索框、同一列表原地过滤（无页面导航）
+    private var searchMode = false
+
+    // 退出搜索态后的首个全量列表恢复并非数据库新增，不计入未读增量
+    private var justExitedSearch = false
 
     // 顶栏沉浸进度缓存（-1 = 尚未初始化，强制首次应用）
     private var topBarProgress = -1f
+
+    // 状态栏高度（systemBars.top，含挖孔），由 WindowInsets 监听器写入；
+    // 顶栏融合时卡片需向上延伸这个高度覆盖状态栏区域
+    private var statusBarTop = 0
 
 
 
@@ -69,9 +93,6 @@ class HomeFragment : Fragment() {
     private var unreadCount = 0
     // 新增：记录上一次列表的最顶端位置，用于判断是否有新消息插入
     private var lastTopPosition = 0
-    private val transition = MaterialFadeThrough().apply {
-        duration = 300
-    }
     private val tag = "HomeFragment"
 
     override fun onCreateView(
@@ -86,28 +107,26 @@ class HomeFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        // 页面架构：主界面三个 tab 页由 MainActivity 的 ViewPager2 常驻承载
+        // （懒加载，切页不销毁视图树），无 Navigation 导航栈与 Fragment 转场；
+        // 顶栏负 margin 越界延伸进状态栏区域，禁止做整树 alpha 淡入
+        // （alpha<1 时整树离屏合成会透出底层壁纸，状态栏区域闪壁纸色）
+
         // 添加数据库实例获取
         val dao = AppDatabase.getInstance(requireContext()).notifyDao()
 
-        // 使用ViewModelFactory初始化ViewModel
+        // 使用ViewModelFactory初始化ViewModel（fragment 级：内嵌搜索态复用
+        // 主页同一视图树与列表原地过滤，无跨页面共享需求）
         val factory = HomeViewModelFactory(dao)
         viewModel = ViewModelProvider(this, factory)[HomeViewModel::class.java]
 
         // ********************** ViewBinding *****************************************
-        appBar = binding.topAppBar
-        searchEditText = binding.searchEditText
-        searchInputLayout = binding.searchInputLayout
+        titleBlock = binding.titleBlock
+        barTitle = binding.barTitle
+        barSubtitle = binding.barSubtitle
         recyclerView = binding.cardRecyclerView
         btnTest = binding.test
         btnUp = binding.goUpon
-        btnSettings = binding.settings
-        appbarScrim = binding.appbarScrim
-        appbarDivider = binding.appbarDivider
-        topBarOutline = binding.topBarOutline
-        // 轮廓颜色直接取自下边缘线的背景（主题色已在 XML 解析，避免引用 material R）
-        (appbarDivider.background as? ColorDrawable)?.let {
-            topBarOutline.outlineColor = it.color
-        }
         floatingTopBar = binding.floatingTopBar
 
         // 卡片样式引擎：把设置页"卡片样式"选择的样式应用到每个通知卡片
@@ -132,6 +151,13 @@ class HomeFragment : Fragment() {
 
         // 顶栏沉浸：滚动时渐显背景并与状态栏融为一体
         setupTopBarImmersion()
+
+        // 状态栏图标颜色按顶栏背景自适应（暗色主题顶栏为深色 → 浅色图标）
+        applyStatusBarIconAppearance(
+            requireActivity().window,
+            requireActivity().window.decorView,
+            floatingTopBar
+        )
 
         // 栈顶卡片左右滑动消除（复现通知栏滑走通知的效果）
         val swipeCallback = NotificationSwipeCallback(
@@ -187,7 +213,8 @@ class HomeFragment : Fragment() {
                     // 因为 submitList 是异步的，这里做一个假设：
                     // 只有当用户没有浏览最顶部时，才累加计数。
 
-                    if (firstVisiblePos > 0 && notifications.isNotEmpty()) {
+                    // 退出搜索态后的首个全量恢复并非数据库新增，跳过未读增量
+                    if (!justExitedSearch && firstVisiblePos > 0 && notifications.isNotEmpty()) {
                         // 这是一个简化逻辑：假设每次 collect 都是因为插入了一条新数据
                         // 严谨的做法是在 Adapter 的 DataObserver 中做，但这里更简单
                         val previousCount = notificationAdapter.itemCount
@@ -197,6 +224,7 @@ class HomeFragment : Fragment() {
                             updateUnreadCount(unreadCount + addedCount)
                         }
                     }
+                    justExitedSearch = false
 
                     notificationAdapter.submitList(notifications) {
                         // 数据更新完成后，如果之前在顶部，保持在顶部（避免被新消息顶下去）
@@ -204,15 +232,13 @@ class HomeFragment : Fragment() {
                             recyclerView.scrollToPosition(0)
                         }
                     }
+
+                    // 搜索空态：有关键词但过滤结果为空
+                    updateSearchEmptyState(notifications.isEmpty())
                 }
         }
 
         // 观察 ViewModel 中的开关状态（服务开关已迁移至设置页）
-
-        // 监听搜索框的文本变化
-        searchEditText.doOnTextChanged { text, _, _, _ ->
-            viewModel.setSearchQuery(text.toString())
-        }
 
         // **********************Component methods *************************************
         btnTest.setOnClickListener {
@@ -242,43 +268,98 @@ class HomeFragment : Fragment() {
             resetUnreadCount()
         }
 
-        btnSettings.setOnClickListener {
-            showSettingsBottomSheet()
+        // 内嵌搜索态：返回键在搜索态下退出搜索（而非离开应用）
+        backCallback = object : OnBackPressedCallback(false) {
+            override fun handleOnBackPressed() = exitSearchMode()
+        }
+        requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner, backCallback)
+
+        // 点击右上角搜索按钮：即时切换搜索态（标题 ↔ 搜索框，search ↔ close 图标互切），
+        // 同一列表原地过滤，零导航、零新视图树
+        binding.barSearchButton.setOnClickListener {
+            if (searchMode) exitSearchMode() else enterSearchMode()
         }
 
-        // 点击导航图标 -> 切换到搜索栏
-        appBar.setNavigationOnClickListener {
-            TransitionManager.beginDelayedTransition(binding.topBarContainer, transition)
-            appBar.visibility = View.GONE
-            searchInputLayout.visibility = View.VISIBLE
-            searchInputLayout.requestFocus()
+        // 输入实时过滤（内存过滤，微秒级，无需防抖/分页）
+        binding.searchEditText.doOnTextChanged { text, _, _, _ ->
+            viewModel.setSearchQuery(text?.toString()?.trim().orEmpty())
         }
 
-        // 搜索栏的起始图标点击事件 -> 切换到应用栏
-        searchInputLayout.setStartIconOnClickListener {
-            appBar.visibility = View.VISIBLE
-            searchInputLayout.visibility = View.GONE
+        // Dock 切页触发的顶栏入场动画：视图创建晚于切页回调时在此领取待播动画
+        val main = activity as? MainActivity
+        if (main?.consumePendingTopBarEntrance() == true) playTopBarEntrance()
+    }
+
+    // ------------------------- 内嵌搜索态 -------------------------
+
+    /** 进入搜索态：顶栏标题切换为搜索框，聚焦弹键盘，返回键拦截启用 */
+    private fun enterSearchMode() {
+        searchMode = true
+        titleBlock.visibility = View.GONE
+        binding.searchInputLayout.visibility = View.VISIBLE
+        binding.barSearchButton.setImageResource(R.drawable.close)
+        backCallback.isEnabled = true
+        // 视图刚从 GONE 变 VISIBLE，post 到完成布局后再弹软键盘
+        binding.searchEditText.requestFocus()
+        binding.searchEditText.post {
+            if (_binding == null) return@post
+            val imm = requireContext()
+                .getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.showSoftInput(binding.searchEditText, InputMethodManager.SHOW_IMPLICIT)
         }
     }
+
+    /** 退出搜索态：清空关键词恢复全量列表，顶栏切回标题 */
+    private fun exitSearchMode() {
+        searchMode = false
+        backCallback.isEnabled = false
+        justExitedSearch = true
+        viewModel.setSearchQuery("")
+        binding.searchEditText.setText("")
+        binding.searchEditText.clearFocus()
+        binding.searchEmptyView.visibility = View.GONE
+        binding.searchInputLayout.visibility = View.GONE
+        titleBlock.visibility = View.VISIBLE
+        binding.barSearchButton.setImageResource(R.drawable.search)
+        val imm = requireContext()
+            .getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        imm.hideSoftInputFromWindow(binding.searchEditText.windowToken, 0)
+        // 搜索期间可能滚动过（顶栏被压缩且标题对齐未更新），恢复后按当前进度重算几何
+        applyTopBarGeometry(topBarProgress.coerceIn(0f, 1f))
+    }
+
+    /** 搜索空态：搜索态且有关键词但过滤结果为空时显示提示 */
+    private fun updateSearchEmptyState(resultEmpty: Boolean) {
+        val b = _binding ?: return
+        b.searchEmptyView.visibility =
+            if (searchMode && !b.searchEditText.text.isNullOrBlank() && resultEmpty)
+                View.VISIBLE else View.GONE
+    }
+
     // ------------------------- 顶栏沉浸（滚动渐显 + 与状态栏融合） -------------------------
 
     /**
-     * 沉浸式顶栏（简单过渡）：
-     *  1. 静态：实色圆角顶栏贴于状态栏下沿，TopBarOutlineView 绘制完整轮廓；
-     *  2. 滚动中：scrim（覆盖状态栏 + 顶栏区域）渐显为 surface 色连成整块，
-     *     轮廓自上而下逐段擦除——上半段先"融入"状态栏；
-     *  3. 融合后：轮廓完全消失，过渡段末尾只渐显一条下边缘线。
-     * 整个过程由滚动偏移直接驱动（约 96dp 滑动完成），可逆、无跳变。
+     * 沉浸式顶栏（全顶栏样式 + 滚动压缩）：
+     *  - 顶栏常驻全宽矩形、从屏幕最顶端开始，状态栏背景即顶栏背景（负上边距
+     *    越出 fragment 上边界，前提是整条父链关闭裁剪）；
+     *  - 滚动时高度压缩（128dp → 64dp）、字号缩小、标题/副标题由居中转靠左，
+     *    由滚动偏移直接驱动（约 96dp 滑动完成），可逆、无跳变；
+     *  - 搜索按钮固定右上角，不参与压缩。
      */
     private fun setupTopBarImmersion() {
-        // 状态栏高度就绪后定位 scrim（负向平移进入状态栏区域）与下边缘线
+        // 状态栏高度就绪后记录（供几何插值使用），并同步列表顶部留白与顶栏几何
         ViewCompat.setOnApplyWindowInsetsListener(binding.root) { _, insets ->
-            val top = insets.getInsets(WindowInsetsCompat.Type.systemBars()).top
-            appbarScrim.translationY = -top.toFloat()
-            appbarScrim.layoutParams.height = top + topBarPillBottom()
-            appbarDivider.translationY = (topBarPillBottom() - 1).toFloat()
-            appbarScrim.requestLayout()
+            applyInsets(insets)
             insets
+        }
+        // fragment 视图在 onViewCreated 时还未 attach 到窗口，此刻请求重新
+        // 分发是 no-op；而首次 insets 分发又发生在 attach 之前、已错过 →
+        // 该竞态是否被其他分发"救回"因设备而异。双保险根治：
+        // ① attach 后直接主动查询根 insets（不依赖任何事件分发的时序）；
+        // ② 再请求一次完整分发，覆盖后续的主题/布局变化。
+        binding.root.doOnAttach {
+            ViewCompat.getRootWindowInsets(it)?.let(::applyInsets)
+            ViewCompat.requestApplyInsets(it)
         }
         recyclerView.addOnScrollListener(object : RecyclerView.OnScrollListener() {
             override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
@@ -286,71 +367,146 @@ class HomeFragment : Fragment() {
             }
         })
         updateTopBarImmersive()
-        // 布局完成后立即应用顶栏初始几何（居中胶囊），避免首帧使用 XML 回退边距
+        // 顶栏卡片需越出 fragment 根布局的上边界延伸到状态栏区域：
+        // 从 fragment 根向上逐层关闭父容器的裁剪（XML 静态声明在部分层级
+        // 会被运行时覆盖或未生效，这里统一强制，覆盖到窗口内容视图为止）。
+        // 放在 doOnAttach 里执行：ViewPager2 下 fragment 视图重建（如横竖屏
+        // 旋转）时 onViewCreated 可能早于 addView（parent=null，循环空转），
+        // attach 后父链（holder → pager 内部 RecyclerView → pager → 根容器）
+        // 必然完整，且新 holder 均为默认裁剪开启的新实例，必须重新关闭。
+        binding.root.doOnAttach { root ->
+            var clipParent = root.parent as? ViewGroup
+            while (clipParent != null) {
+                clipParent.clipChildren = false
+                clipParent.clipToPadding = false
+                clipParent = clipParent.parent as? ViewGroup
+            }
+            val rootGroup = root as ViewGroup
+            rootGroup.clipChildren = false
+            rootGroup.clipToPadding = false
+        }
+        // 布局几何就绪后立即应用顶栏初始几何，避免首帧使用 XML 回退值
         binding.root.doOnLayout { applyTopBarGeometry(topBarProgress.coerceIn(0f, 1f)) }
     }
 
-    /** 悬浮顶栏底部在 fragment 坐标系中的位置（工具栏高度） */
-    private fun topBarPillBottom(): Int {
-        val tv = TypedValue()
-        val barHeight = if (requireContext().theme.resolveAttribute(
-                android.R.attr.actionBarSize, tv, true
-            )
-        ) {
-            TypedValue.complexToDimensionPixelSize(tv.data, resources.displayMetrics)
-        } else {
-            dp(56f).toInt()
-        }
-        return barHeight
+    /** insets 就绪：记录状态栏高度，并同步列表顶部留白与顶栏几何 */
+    private fun applyInsets(insets: WindowInsetsCompat) {
+        statusBarTop = insets.getInsets(WindowInsetsCompat.Type.systemBars()).top
+        // 列表内容避开展开态顶栏（状态栏 + 16dp 间距 + 展开高度 + 8dp 呼吸）
+        recyclerView.setPadding(
+            recyclerView.paddingLeft,
+            (statusBarTop + dp(16f) + dp(CONTENT_EXPANDED_DP) + dp(8f)).toInt(),
+            recyclerView.paddingRight,
+            recyclerView.paddingBottom
+        )
+        applyTopBarGeometry(topBarProgress.coerceIn(0f, 1f))
     }
 
     /**
-     * 顶栏几何插值（progress: 0 = 悬浮胶囊, 1 = 全宽矩形顶栏）：
-     *  - 左右边距：父容器宽度各 20%（居中胶囊）→ 0（全宽），胶囊边缘向两侧扩展，
-     *    左上角随之上移——视觉上即"胶囊向左上移动展开成矩形顶栏"；
-     *  - 上边距：16dp（状态栏下沿之下）→ 0（贴住状态栏）；
-     *  - 圆角：28dp（胶囊）→ 0（矩形）；
-     *  - 轮廓：由上往下逐段擦除（TopBarOutlineView）。
-     * 修改初始圆角时需同步 fragment_home.xml 的 app:cardCornerRadius。
+     * 顶栏几何插值（全顶栏样式，progress: 0 = 展开态, 1 = 压缩态）：
+     *  - 顶栏常驻全宽矩形、从屏幕最顶端开始（卡片上边距 = -状态栏高度，
+     *    天然覆盖状态栏区域）；内容容器同步下移状态栏高度，内容行钉在状态栏之下；
+     *  - 内容高度：128dp（展开，大字居中）→ 64dp（压缩，小字靠左），
+     *    卡片（wrap_content）随之变矮；
+     *  - 字号：标题 24sp → 16sp，副标题 15sp → 12sp；
+     *  - 水平对齐：标题/副标题居中（平移量随进度归零）→ 靠左 16dp；
+     *  - 下边缘线常显，始终贴住卡片底边。
+     * 注意：负上边距要求整条父链关闭裁剪（fragment 根布局与 nav_host 的
+     * clipChildren/clipToPadding 均为 false），否则延伸进状态栏的部分被裁掉。
      */
     private fun applyTopBarGeometry(progress: Float) {
-        val parentView = floatingTopBar.parent as? ViewGroup ?: return
-        if (parentView.width == 0) return
         val lp = floatingTopBar.layoutParams as ViewGroup.MarginLayoutParams
-        val remain = 1f - progress
-        val sideMargin = (parentView.width * 0.2f * remain).toInt()
-        lp.leftMargin = sideMargin
-        lp.rightMargin = sideMargin
-        lp.topMargin = (dp(16f) * remain).toInt()
+        lp.leftMargin = 0
+        lp.rightMargin = 0
+        // 顶栏常驻覆盖状态栏：卡片顶边钉在屏幕最顶端（负边距越出 fragment 上边界）
+        lp.topMargin = -statusBarTop
         floatingTopBar.layoutParams = lp
-        floatingTopBar.radius = dp(28f) * remain
-        topBarOutline.outlineProgress = progress
+
+        // 搜索按钮钉在内容行顶部（相对内容行 12dp）：位置不随压缩变化，
+        // 且始终在状态栏触摸区之外（落在状态栏区域内会被状态栏窗口拦截点击）。
+        // 注意按钮的参照系是 topBarContainer（其顶部已在状态栏高度处），
+        // 这里不能再叠加 statusBarTop，否则双重偏移
+        val btnLp = binding.barSearchButton.layoutParams as ViewGroup.MarginLayoutParams
+        btnLp.topMargin = dp(12f).toInt()
+        binding.barSearchButton.layoutParams = btnLp
+
+        // 内容高度：展开 → 压缩；容器下移抵消卡片上移，内容行钉在状态栏之下
+        val contentH = lerpDp(CONTENT_EXPANDED_DP, CONTENT_COLLAPSED_DP, progress)
+        val containerLp = binding.topBarContainer.layoutParams as ViewGroup.MarginLayoutParams
+        containerLp.topMargin = statusBarTop
+        containerLp.height = contentH
+        binding.topBarContainer.layoutParams = containerLp
+
+        // 字号：大 → 小（展开态空间充裕，压缩态紧凑）
+        barTitle.setTextSize(TypedValue.COMPLEX_UNIT_SP, lerpSp(TITLE_SP_EXPANDED, TITLE_SP_COLLAPSED, progress))
+        barSubtitle.setTextSize(TypedValue.COMPLEX_UNIT_SP, lerpSp(SUBTITLE_SP_EXPANDED, SUBTITLE_SP_COLLAPSED, progress))
+
+        // 水平对齐：展开居中 → 压缩靠左。本帧先按当前宽度估算，
+        // 布局完成后（post）再用新鲜宽度重算——滚动停止后不再有几何调用，
+        // 若只用滞后宽度，静止的顶栏会残留旧宽度算出的平移（标题溢出）
+        val remain = 1f - progress
+        applyBarTextAlignment(remain)
+        titleBlock.post { if (_binding != null) applyBarTextAlignment(remain) }
     }
 
-    /** 按当前滚动偏移更新顶栏沉浸进度（0 = 悬浮胶囊，1 = 融合为矩形顶栏） */
+    /** dp 线性插值 */
+    private fun lerpDp(from: Float, to: Float, progress: Float): Int =
+        (dp(from) + (dp(to) - dp(from)) * progress).toInt()
+
+    /** sp 线性插值 */
+    private fun lerpSp(from: Float, to: Float, progress: Float): Float =
+        from + (to - from) * progress
+
+    /**
+     * 标题/副标题水平对齐：展开态居中（translationX 补偿）→ 压缩态靠左（0）。
+     * 宽度取视图自身 width（wrap_content = 文本实际宽），布局完成后始终有效；
+     * GONE 期间（搜索态）跳过，避免用 0 宽度算出错误平移污染恢复后的位置。
+     */
+    private fun applyBarTextAlignment(remain: Float) {
+        if (titleBlock.visibility != View.VISIBLE) return
+        val usable = binding.topBarContainer.width - dp(32f)  // 容器宽 - 两侧 16dp padding
+        if (usable <= 0) return
+        barTitle.translationX = ((usable - barTitle.width) / 2f).coerceAtLeast(0f) * remain
+        barSubtitle.translationX = ((usable - barSubtitle.width) / 2f).coerceAtLeast(0f) * remain
+    }
+
+    /** 按当前滚动偏移更新顶栏压缩进度（0 = 展开态，1 = 压缩态） */
     private fun updateTopBarImmersive() {
         val progress = (recyclerView.computeVerticalScrollOffset() / dp(96f))
             .coerceIn(0f, 1f)
         if (progress == topBarProgress) return
         topBarProgress = progress
-        // 胶囊 → 矩形顶栏的几何过渡（边距、圆角、轮廓擦除）
+        // 顶栏压缩过渡（高度、字号、对齐）
         applyTopBarGeometry(progress)
-        // scrim 渐显：状态栏 + 顶栏区域连成整块背景
-        appbarScrim.alpha = progress
-        // 融合后期（70% 之后）只渐显一条下边缘线
-        appbarDivider.alpha = ((progress - 0.7f) / 0.3f).coerceIn(0f, 1f)
+    }
+
+    // ------------------------- 顶栏入场动画（Dock 切页过渡） -------------------------
+
+    /**
+     * Dock 切页入场：顶栏从屏幕外（含越界的状态栏部分）滑回原位。
+     * 只做 translationY 位移——卡片背景不透明，位移不会透出壁纸；
+     * 整卡 alpha<1 会离屏合成透出底层壁纸，禁止。
+     */
+    override fun playTopBarEntrance() {
+        val bar = floatingTopBar
+        // 切页瞬间 fragment 视图可能仍 detach（holder 在缓存中），不能用
+        // doOnLayout：视图重新放置时若尺寸未变且无 FORCE_LAYOUT，View.layout
+        // 会跳过 onLayoutChange，挂起的回调永不触发、动画静默丢失（实测二次
+        // 切页复现）；preDraw 每帧绘制前必触发，切页后首帧瞬移即生效（无闪烁）
+        bar.doOnPreDraw {
+            if (_binding == null) return@doOnPreDraw
+            // 先瞬移到屏幕外（首帧绘制前生效），下一帧再滑回原位
+            bar.translationY = -(bar.height + statusBarTop).toFloat()
+            bar.post {
+                if (_binding == null) return@post
+                bar.animate().translationY(0f).setDuration(240L)
+                    .setInterpolator(DecelerateInterpolator(1.6f))
+                    .start()
+            }
+        }
     }
 
     private fun dp(v: Float): Float = v * resources.displayMetrics.density
-
-    /**展示设置底部弹窗 */
-    private fun showSettingsBottomSheet() {
-        val bottomSheetDialog = BottomSheetDialog(requireContext())
-        val view = layoutInflater.inflate(R.layout.bottom_sheet_settings, null)
-        bottomSheetDialog.setContentView(view)
-        bottomSheetDialog.behavior.state = BottomSheetBehavior.STATE_EXPANDED
-        bottomSheetDialog.show()
-    }
 
     /** Clicking any notification card opens its full details. */
     private fun handleCardClick(log: NotificationLog) {
@@ -369,6 +525,19 @@ class HomeFragment : Fragment() {
         super.onResume()
         // 从设置页返回时刷新服务状态徽标（与设置页"服务监控"开关联动）
         updateServiceStatusBadge()
+        // 从设置页等页面返回时恢复状态栏图标外观（按顶栏色自适应，
+        // 覆盖其他页面对窗口状态栏外观的临时改动）
+        if (_binding != null) {
+            AppWallpaperApplier.applyConfigured(requireActivity(), Runnable {
+                val contentRoot = requireActivity().findViewById<View>(android.R.id.content)
+                if (contentRoot != null) CardStyleEngine.refreshAttachedCards(contentRoot)
+            })
+            applyStatusBarIconAppearance(
+                requireActivity().window,
+                requireActivity().window.decorView,
+                floatingTopBar
+            )
+        }
     }
 
     override fun onDestroyView() {
@@ -396,7 +565,7 @@ class HomeFragment : Fragment() {
             text.length,
             Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
         )
-        b.topAppBar.title = text
+        b.barTitle.text = text
     }
 
     private fun insertTestNotification() {

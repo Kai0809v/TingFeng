@@ -5,6 +5,7 @@
     <string name="info">关于</string>
     <string name="title_home">主页</string>
     <string name="title_utils">工具</string>
+    <string name="title_statistics">统计</string>
     <string name="settings">设置</string>
     <string name="title_register">测试阶段，账号注册数据仅保留在本地</string>
     <string name="title_users">用户列表</string>
