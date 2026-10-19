@@ -32,15 +32,18 @@ import com.dreamct.tingfeng.databinding.FragmentSettingsBinding
 import com.dreamct.tingfeng.service.Ting
 import com.dreamct.tingfeng.service.TingConfig
 import com.dreamct.tingfeng.ui.Author
+import com.dreamct.tingfeng.ui.animation.ThemeRevealAnimator
 import com.dreamct.tingfeng.ui.home.CardStyleEngine
 import com.dreamct.tingfeng.ui.home.NotificationCardView
-import com.dreamct.tingfeng.ui.login.LoginActivity
 import com.dreamct.tingfeng.ui.navigation.TopBarAnimatable
+import com.dreamct.tingfeng.ui.theme.TingTheme
 import com.dreamct.tingfeng.utilities.AppWallpaperApplier
 import com.dreamct.tingfeng.utilities.applyStatusBarIconAppearance
 import com.dreamct.tingfeng.utilities.hasNotificationAccessPermission
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.R as MaterialR
+import androidx.appcompat.R as AppCompatR
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -53,6 +56,9 @@ class SettingsFragment : Fragment(), TopBarAnimatable {
 
     private val tag = "SettingsFragment"
     private var isSettingServiceSwitch = false // 防止程序设置触发监听器
+
+    /** 使用提示对话框展示的文案（由 SettingsViewModel 提供） */
+    private var tipsMessage: String = ""
 
     // 状态栏高度（systemBars.top，含挖孔）：顶栏负 margin 越界延伸进状态栏区域
     private var statusBarTop = 0
@@ -76,7 +82,7 @@ class SettingsFragment : Fragment(), TopBarAnimatable {
             AppWallpaperApplier.loadPreview(requireActivity(), uri, currentBinding.appWallpaperPreview)
             currentBinding.appWallpaperStatus.text = "已选择图片，点击可更换"
         }
-        updateWallpaperSourceControls()
+        updateWallpaperSourceControls(animate = true)
         AppWallpaperApplier.applyConfigured(requireActivity(), Runnable {
             refreshWallpaperSettingsFromConfig()
             refreshStylePreview()
@@ -104,9 +110,13 @@ class SettingsFragment : Fragment(), TopBarAnimatable {
         )
 
         // ******************************* 组件方法 ******************************************
-        // 登录：跳转登录页
-        binding.btnLogin.setOnClickListener {
-            startActivity(Intent(requireActivity(), LoginActivity::class.java))
+        // 使用提示：对话框展示运行提示文案（原页面末尾文字移入弹窗）
+        binding.btnTips.setOnClickListener {
+            MaterialAlertDialogBuilder(requireContext())
+                .setTitle("使用提示")
+                .setMessage(tipsMessage)
+                .setPositiveButton("知道了", null)
+                .show()
         }
 
         // 关于：跳转作者信息页
@@ -114,20 +124,12 @@ class SettingsFragment : Fragment(), TopBarAnimatable {
             startActivity(Intent(requireActivity(), Author::class.java))
         }
 
-        // 分享应用：功能后续实现
-        binding.btnShare.setOnClickListener {
-            // TODO: 实现分享应用
-        }
+        // 主题设置：底部面板选择应用全局配色；入口摘要实时显示当前主题名
+        binding.themeSelection.text = TingTheme.current(requireContext()).displayName
+        binding.themeSetting.setOnClickListener { showThemeBottomSheet() }
 
-        // 主题设置：功能后续实现
-        binding.themeSetting.setOnClickListener {
-            // TODO: 实现主题切换（跟随系统 / 浅色 / 深色）
-        }
-
-        // ------------------------- 壁纸背景 -------------------------
-        // 系统壁纸与应用内壁纸互斥显示；系统壁纸透明度不作用于应用内图片。
-        val wallpaperEnabled = TingConfig.wallpaperEnabled(requireContext())
-        binding.wallpaperSwitch.isChecked = wallpaperEnabled
+        // ------------------------- 壁纸背景（应用内壁纸） -------------------------
+        // 选取图片作为应用背景；「壁纸不透明度」滑块仅在启用时展开显示。
         val appWallpaperEnabled = TingConfig.appWallpaperEnabled(requireContext()) &&
                 !TingConfig.appWallpaperUri(requireContext()).isNullOrBlank()
         binding.appWallpaperSwitch.isChecked = appWallpaperEnabled
@@ -144,16 +146,8 @@ class SettingsFragment : Fragment(), TopBarAnimatable {
                 )
             }
         }
-        binding.appWallpaperAlphaSlider.value =
-            TingConfig.appWallpaperAlpha(requireContext()) * 100f
-        updateAppWallpaperAlphaText(binding.appWallpaperAlphaSlider.value)
         updateWallpaperSourceControls()
 
-        binding.wallpaperSwitch.setOnCheckedChangeListener { _, isChecked ->
-            TingConfig.setWallpaperEnabled(requireContext(), isChecked)
-            updateWallpaperSourceControls()
-            AppWallpaperApplier.applyConfigured(requireActivity())
-        }
         binding.appWallpaperSwitch.setOnCheckedChangeListener { _, isChecked ->
             if (isChecked && TingConfig.appWallpaperUri(requireContext()).isNullOrBlank()) {
                 binding.appWallpaperSwitch.isChecked = false
@@ -161,7 +155,7 @@ class SettingsFragment : Fragment(), TopBarAnimatable {
                 return@setOnCheckedChangeListener
             }
             TingConfig.setAppWallpaperEnabled(requireContext(), isChecked)
-            updateWallpaperSourceControls()
+            updateWallpaperSourceControls(animate = true)
             AppWallpaperApplier.applyConfigured(requireActivity(), Runnable {
                 refreshWallpaperSettingsFromConfig()
             })
@@ -170,7 +164,7 @@ class SettingsFragment : Fragment(), TopBarAnimatable {
             appWallpaperPicker.launch(arrayOf("image/*"))
         }
 
-        // 初始化透明度滑杆（0~100，无阈值限制）
+        // 初始化透明度滑杆（0~100，无阈值限制）；系统壁纸与应用内壁纸共用
         binding.wallpaperAlphaSlider.value =
             TingConfig.wallpaperAlpha(requireContext()) * 100f
         updateAlphaText(binding.wallpaperAlphaSlider.value)
@@ -181,21 +175,6 @@ class SettingsFragment : Fragment(), TopBarAnimatable {
                 AppWallpaperApplier.applyConfigured(requireActivity())
             }
         }
-
-        binding.appWallpaperAlphaSlider.addOnChangeListener { _, value, fromUser ->
-            updateAppWallpaperAlphaText(value)
-            if (fromUser) TingConfig.setAppWallpaperAlpha(requireContext(), value / 100f)
-        }
-        binding.appWallpaperAlphaSlider.addOnSliderTouchListener(
-            object : com.google.android.material.slider.Slider.OnSliderTouchListener {
-                override fun onStartTrackingTouch(slider: com.google.android.material.slider.Slider) = Unit
-                override fun onStopTrackingTouch(slider: com.google.android.material.slider.Slider) {
-                    AppWallpaperApplier.applyConfigured(requireActivity(), Runnable {
-                        refreshStylePreview()
-                    })
-                }
-            }
-        )
 
         // ------------------------- 卡片样式（通知卡片个性化） -------------------------
         setupCardStyleSection()
@@ -262,7 +241,7 @@ class SettingsFragment : Fragment(), TopBarAnimatable {
         }
 
         // 运行提示文案
-        settingsViewModel.text.observe(viewLifecycleOwner) { binding.tipsText.text = it }
+        settingsViewModel.text.observe(viewLifecycleOwner) { tipsMessage = it }
 
         // 注意：本页顶栏负 margin 越界延伸进状态栏，禁止整树 alpha 淡入
         // （alpha<1 时整树离屏合成透出底层壁纸，状态栏区域闪壁纸色），
@@ -312,6 +291,12 @@ class SettingsFragment : Fragment(), TopBarAnimatable {
         binding.settingsTopBarContent.setPadding(
             dp(20f), statusBarTop + dp(12f), dp(20f), dp(12f)
         )
+        // 顶栏三段色相渐变（淡化 50%）：content 含状态栏避让 padding、铺满整卡，
+        // 与底部 Dock、其余两页顶栏同源（见 TingTheme.hueGradient surfaceBlend）
+        binding.settingsTopBarContent.background = TingTheme.hueGradient(
+            requireContext(), dp(24f).toFloat(), horizontal = true, surfaceBlend = 0.5f,
+            stroke = true
+        )
         binding.settingsTopBar.doOnLayout { bar ->
             binding.settingsScroll.setPadding(
                 binding.settingsScroll.paddingLeft,
@@ -359,30 +344,31 @@ class SettingsFragment : Fragment(), TopBarAnimatable {
         binding.wallpaperAlphaText.text = "${value.toInt()}%"
     }
 
-    private fun updateAppWallpaperAlphaText(value: Float) {
-        binding.appWallpaperAlphaText.text = "${value.toInt()}%"
-    }
-
-    private fun updateWallpaperSourceControls() {
+    /**
+     * 展开/折叠「壁纸不透明度」滑块区。
+     * @param animate 用户手势入口传 true 播放过渡；异步回调/初始化路径必须保持 false——
+     * 动画播放中再次 beginDelayedTransition 会 cancel 前一个动画并把兄弟视图位置
+     * 冻结在半途（实测「卡片样式」区块与滑块重叠且滚动不纠正）。
+     * 可见性无变化时直接跳过，同样避免重复 begin 过渡。
+     */
+    private fun updateWallpaperSourceControls(animate: Boolean = false) {
         if (_binding == null) return
         val hasAppWallpaper = !TingConfig.appWallpaperUri(requireContext()).isNullOrBlank()
         val appActive = TingConfig.appWallpaperEnabled(requireContext()) && hasAppWallpaper
-        val systemEnabled = TingConfig.wallpaperEnabled(requireContext())
-        TransitionManager.beginDelayedTransition(binding.root)
-        binding.appWallpaperAlphaSection.visibility = if (appActive) View.VISIBLE else View.GONE
-        binding.wallpaperAlphaSection.visibility =
-            if (systemEnabled && !appActive) View.VISIBLE else View.GONE
-        binding.wallpaperSwitch.isEnabled = !appActive
-        binding.wallpaperSourceDescription.text = if (appActive) {
-            "应用内壁纸已启用，暂时替代系统壁纸"
-        } else {
-            "将应用背景替换为当前系统壁纸"
+        val section = binding.wallpaperAlphaSection
+        val target = if (appActive) View.VISIBLE else View.GONE
+        if (section.visibility == target) return
+        if (animate) {
+            // 必须在 visibility 变更前调用：begin 时捕获起始状态，下一帧布局后捕获终态
+            TransitionManager.beginDelayedTransition(binding.root)
         }
+        section.visibility = target
     }
 
     private fun refreshWallpaperSettingsFromConfig() {
         val currentBinding = _binding ?: return
         val uri = TingConfig.appWallpaperUri(requireContext())
+        // 与配置同值的 isChecked 赋值不会触发监听器，无回声
         currentBinding.appWallpaperSwitch.isChecked =
             TingConfig.appWallpaperEnabled(requireContext()) && !uri.isNullOrBlank()
         if (uri.isNullOrBlank()) {
@@ -612,6 +598,134 @@ class SettingsFragment : Fragment(), TopBarAnimatable {
     }
 
     /**
+     * 主题选择面板（BottomSheetDialog，与通知过滤面板同款抽屉把手视觉）：
+     * 按 [TingTheme] 枚举生成选项行——三色板预览（亮色调色板
+     * primary/tertiary/secondary）+ 名称与说明 + 选中态圆点。
+     * 点击选项保存配置并 recreate Activity 应用新配色：主题覆盖样式
+     * （theme.applyStyle）只做加法不可撤销，必须重建 Activity 让主题
+     * 从 manifest 重新解析后再叠加新主题的覆盖样式（见 [TingTheme.applyTo]）。
+     */
+    private fun showThemeBottomSheet() {
+        val ctx = requireContext()
+        val dialog = com.google.android.material.bottomsheet.BottomSheetDialog(ctx)
+        val sheet = layoutInflater.inflate(R.layout.bottom_sheet_theme, null)
+        dialog.setContentView(sheet)
+        dialog.behavior.state =
+            com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_EXPANDED
+
+        val list = sheet.findViewById<LinearLayout>(R.id.theme_options_list)!!
+        val density = resources.displayMetrics.density
+        fun dp(v: Float): Int = (v * density).toInt()
+        // 面板顶部预览条：当前主题的三段色相渐变（与 Dock/顶栏同源）
+        sheet.findViewById<View>(R.id.theme_gradient_preview)!!.background =
+            TingTheme.hueGradient(ctx, dp(3f).toFloat(), horizontal = true)
+        val current = TingTheme.current(ctx)
+
+        // 选项行点击态：主题属性引用的 ripple drawable（resolveAttribute 转资源 id）
+        val rippleValue = TypedValue()
+        ctx.theme.resolveAttribute(android.R.attr.selectableItemBackground, rippleValue, true)
+
+        for (theme in TingTheme.entries) {
+            val row = LinearLayout(ctx).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(8f), dp(12f), dp(8f), dp(12f))
+                if (rippleValue.resourceId != 0) setBackgroundResource(rippleValue.resourceId)
+                isClickable = true
+                isFocusable = true
+            }
+
+            // 三色板预览：相邻圆片重叠成扇形（与其他项目主题选择器同款样式）
+            val swatches = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
+            theme.swatches.forEachIndexed { index, color ->
+                val swatch = View(ctx)
+                swatch.background = android.graphics.drawable.GradientDrawable().apply {
+                    shape = android.graphics.drawable.GradientDrawable.OVAL
+                    setColor(color)
+                }
+                swatches.addView(
+                    swatch,
+                    LinearLayout.LayoutParams(dp(22f), dp(22f)).apply {
+                        if (index > 0) marginStart = -dp(7f)
+                    }
+                )
+            }
+            row.addView(swatches)
+
+            // 名称 + 说明（占满剩余宽度）
+            val textCol = LinearLayout(ctx).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(
+                    0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
+                ).apply { marginStart = dp(12f) }
+            }
+            val nameView = TextView(ctx).apply {
+                text = theme.displayName
+                textSize = 16f
+                setTextColor(
+                    CardStyleEngine.themeColor(
+                        ctx, MaterialR.attr.colorOnSurface, 0xFF1C1917.toInt()
+                    )
+                )
+            }
+            val hintView = TextView(ctx).apply {
+                text = theme.hint
+                textSize = 12f
+                setTextColor(
+                    CardStyleEngine.themeColor(
+                        ctx, MaterialR.attr.colorOnSurfaceVariant, 0xFF575361.toInt()
+                    )
+                )
+            }
+            textCol.addView(nameView)
+            textCol.addView(hintView)
+            row.addView(textCol)
+
+            // 选中态圆点：选中 = colorPrimary 实心；未选 = colorOutline 描边空心
+            val dot = View(ctx)
+            dot.background = android.graphics.drawable.GradientDrawable().apply {
+                shape = android.graphics.drawable.GradientDrawable.OVAL
+                if (theme == current) {
+                    setColor(
+                        CardStyleEngine.themeColor(
+                            ctx, AppCompatR.attr.colorPrimary, 0xFF6B4EFF.toInt()
+                        )
+                    )
+                } else {
+                    setColor(android.graphics.Color.TRANSPARENT)
+                    setStroke(
+                        dp(2f),
+                        CardStyleEngine.themeColor(
+                            ctx, MaterialR.attr.colorOutline, 0xFFC7C4D4.toInt()
+                        )
+                    )
+                }
+            }
+            row.addView(dot, LinearLayout.LayoutParams(dp(20f), dp(20f)))
+
+            row.setOnClickListener {
+                if (theme == current) {
+                    dialog.dismiss()
+                    return@setOnClickListener
+                }
+                TingConfig.setAppTheme(ctx, theme.id)
+                // 记录被点击行的屏幕中心坐标：recreate 后新首帧以此为圆心
+                // 做圆形揭示动画（见 ThemeRevealAnimator）
+                val loc = IntArray(2)
+                row.getLocationOnScreen(loc)
+                ThemeRevealAnimator.arm(
+                    ctx, loc[0] + row.width / 2, loc[1] + row.height / 2
+                )
+                dialog.dismiss()
+                requireActivity().recreate()
+            }
+            list.addView(row)
+        }
+
+        dialog.show()
+    }
+
+    /**
      * 通知过滤配置面板（BottomSheetDialog，复用原主页入口的布局）：
      *  - 屏蔽指定应用：多选已安装可启动应用，选中的包名在服务记录通知时直接忽略；
      *  - 关键词屏蔽：标题或内容命中任一关键词（不区分大小写）即不记录。
@@ -644,22 +758,31 @@ class SettingsFragment : Fragment(), TopBarAnimatable {
 
         val pad = (12f * resources.displayMetrics.density).toInt()
 
+        /** sheet 布局变化的统一过渡：作用域必须取 dialog 窗口 decorView（sheet.rootView）。
+         *  若只作用于 sheet 根，卡片高度动画期间 sheet 自身高度（wrap_content）在
+         *  首次 layout 就瞬间跳到终值，外层 BottomSheetDialogFrameLayout 跟随瞬跳，
+         *  内容还在动画而 sheet 底边先跳位；提升到窗口层后 sheet 容器的高度变化
+         *  同样被 ChangeBounds 捕获，整体平滑。 */
+        fun beginSheetTransition() {
+            val scope = (sheet.rootView as? ViewGroup) ?: (sheet as ViewGroup)
+            val transition = androidx.transition.AutoTransition().apply { duration = 220 }
+            TransitionManager.beginDelayedTransition(scope, transition)
+        }
+
         /** 展开行/收起行的通用切换（高度 + 淡入淡出过渡，箭头同步旋转）。
-         *  注意：content 自身的 visibility 变化要被 Transition 捕获，
-         *  beginDelayedTransition 必须作用于其父容器（作用域=场景根）。 */
+         *  注意：应用区/关键词区是两张独立 MaterialCardView，过渡作用域见
+         *  beginSheetTransition——低于窗口层的场景捕获不到卡片高度收缩与
+         *  相邻卡片位移，只剩 content 内部一瞬 Fade，等于没有动画。 */
         fun toggleSection(content: View, icon: ImageView) {
             val expand = content.visibility == View.GONE
-            val parent = content.parent as? ViewGroup
-            if (parent != null) {
-                val transition = androidx.transition.AutoTransition().apply { duration = 220 }
-                TransitionManager.beginDelayedTransition(parent, transition)
-            }
+            beginSheetTransition()
             content.visibility = if (expand) View.VISIBLE else View.GONE
             icon.animate().rotation(if (expand) 180f else 0f).setDuration(220L).start()
         }
 
         /** 渲染已屏蔽应用动态行：应用名 + 移除按钮 */
         fun refreshBlockedRows() {
+            beginSheetTransition()
             blockedList.removeAllViews()
             if (blocked.isEmpty()) {
                 emptyBlocked.visibility = View.VISIBLE
@@ -707,6 +830,7 @@ class SettingsFragment : Fragment(), TopBarAnimatable {
 
         /** 渲染已屏蔽关键词动态行：关键词 + 移除按钮 */
         fun refreshKeywordRows() {
+            beginSheetTransition()
             keywordsList.removeAllViews()
             if (keywords.isEmpty()) {
                 emptyKeywords.visibility = View.VISIBLE
@@ -753,41 +877,45 @@ class SettingsFragment : Fragment(), TopBarAnimatable {
             toggleSection(contentKeywords, iconKeywords)
         }
 
-        // 选择应用：多选已安装、有桌面入口的用户应用（排除自身）
+        // 选择应用：数据源为记录过的通知里的不同应用（免应用列表可见性声明，
+        // 代价是应用需先发过一条通知）；已屏蔽项始终列出，保证可取消屏蔽
         sheet.findViewById<View>(R.id.btn_block_app).setOnClickListener {
-            val pm = ctx.packageManager
-            val launchables = pm.queryIntentActivities(
-                Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0
-            )
-            val items = launchables.mapNotNull { ri ->
-                val pkg = ri.activityInfo.packageName
-                if (pkg == ctx.packageName) return@mapNotNull null
-                val name = try {
-                    pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
-                } catch (e: Exception) {
-                    pkg
+            viewLifecycleOwner.lifecycleScope.launch {
+                val known = runCatching {
+                    AppDatabase.getInstance(ctx).notifyDao().getKnownApps()
+                }.getOrDefault(emptyList())
+                // pkg -> name：已屏蔽包先占位（卸载或清空记录后仍能取消屏蔽），
+                // 记录里的应用直接用记录时的应用名（不受系统包可见性限制）
+                val merged = LinkedHashMap<String, String>()
+                blocked.forEach { pkg -> merged[pkg] = pkg }
+                known.forEach { row -> merged[row.pkg] = row.name }
+                val items = merged.entries
+                    .sortedBy { it.value.lowercase() }
+                    .map { it.key to it.value }
+                if (items.isEmpty()) {
+                    Toast.makeText(
+                        ctx,
+                        "暂无可选应用（应用发出通知后会出现在这里）",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    return@launch
                 }
-                name to pkg
-            }.distinctBy { it.second }.sortedBy { it.first.lowercase() }
-            if (items.isEmpty()) {
-                Toast.makeText(ctx, "未找到可选应用", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
+                val names = items.map { it.second }.toTypedArray()
+                val checked = items.map { it.first in blocked }.toBooleanArray()
+                MaterialAlertDialogBuilder(ctx)
+                    .setTitle("选择要屏蔽的应用")
+                    .setMultiChoiceItems(names, checked) { _, which, isChecked ->
+                        if (isChecked) blocked.add(items[which].second)
+                        else blocked.remove(items[which].second)
+                    }
+                    .setPositiveButton("确定") { _, _ ->
+                        TingConfig.setBlockedPackages(ctx, blocked)
+                        refreshBlockedRows()
+                        updateFilterSummary()
+                    }
+                    .setNegativeButton("取消", null)
+                    .show()
             }
-            val names = items.map { it.first }.toTypedArray()
-            val checked = items.map { it.second in blocked }.toBooleanArray()
-            MaterialAlertDialogBuilder(ctx)
-                .setTitle("选择要屏蔽的应用")
-                .setMultiChoiceItems(names, checked) { _, which, isChecked ->
-                    if (isChecked) blocked.add(items[which].second)
-                    else blocked.remove(items[which].second)
-                }
-                .setPositiveButton("确定") { _, _ ->
-                    TingConfig.setBlockedPackages(ctx, blocked)
-                    refreshBlockedRows()
-                    updateFilterSummary()
-                }
-                .setNegativeButton("取消", null)
-                .show()
         }
 
         // 添加关键词（trim / 非空 / 去重，忽略大小写重复）

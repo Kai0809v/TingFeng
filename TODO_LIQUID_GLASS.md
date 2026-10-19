@@ -91,7 +91,7 @@
 
 ## 6. 参考
 
-- 文档：https://kyant.gitbook.io/backdrop（页面 URL 加 `.md` 可得 Markdown 版）
+- 文档：https://kyant.gitbook.io/backdrop （页面 URL 加 `.md` 可得 Markdown 版）
 - 典型用法：tutorials/glass-bottom-bar（Dock 场景完全同构）、tutorials/glass-bottom-sheet（exportedBackdrop 防循环）
 - 效果 API：api/backdrop-effects（顺序：colorFilter ⇒ blur ⇒ lens）
 - 相关代码：`MainActivity.java`（pager 装配/insets）、`ui/navigation/FloatingDock.kt` + `FloatingDockInstaller.kt`（Dock Compose 组件）、`service/TingConfig.kt`（开关持久化）、`ui/settings/SettingsFragment.kt`（开关 UI，参考 refreshHomeCards 实时刷新模式）

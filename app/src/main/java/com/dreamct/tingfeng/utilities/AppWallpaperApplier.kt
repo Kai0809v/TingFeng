@@ -62,9 +62,9 @@ object AppWallpaperApplier {
     private val mainHandler = Handler(Looper.getMainLooper())
 
     /**
-     * Applies the selected app wallpaper, or restores the system-wallpaper scrim when disabled.
-     * Image decoding happens off the UI thread. The app wallpaper is drawn over an opaque
-     * theme-color base, so the system wallpaper opacity can never bleed through it.
+     * Applies the selected app wallpaper, or restores the plain theme background when disabled.
+     * Image decoding happens off the UI thread. The wallpaper is drawn over an opaque
+     * theme-color base (窗口不透明，任何启动/恢复瞬间都有主题背景色兜底).
      */
     @JvmStatic
     @JvmOverloads
@@ -79,7 +79,7 @@ object AppWallpaperApplier {
             pendingHost = null
             activeAsset = null
             activeHost = null
-            WallpaperApplier.apply(activity, TingConfig.wallpaperVisibility(activity))
+            host.background = ColorDrawable(themeBackground(activity))
             onApplied?.run()
             return
         }
@@ -105,7 +105,7 @@ object AppWallpaperApplier {
                 pendingActivity = null
                 pendingHost = null
                 activeHost = WeakReference(host)
-                host.background = WallpaperImageDrawable(cached.image, appBaseColor, TingConfig.appWallpaperAlpha(activity))
+                host.background = WallpaperImageDrawable(cached.image, appBaseColor, TingConfig.wallpaperAlpha(activity))
                 onApplied?.run()
             } else if (pendingKey == key) {
                 pendingActivity = WeakReference(activity)
@@ -148,14 +148,14 @@ object AppWallpaperApplier {
                             activeAsset = null
                             activeHost = null
                             TingConfig.setAppWallpaperEnabled(targetActivity, false)
-                            WallpaperApplier.apply(targetActivity, TingConfig.wallpaperVisibility(targetActivity))
+                            targetHost.background = ColorDrawable(themeBackground(targetActivity))
                         } else {
                             activeAsset = loaded
                             activeHost = WeakReference(targetHost)
                             targetHost.background = WallpaperImageDrawable(
                                 loaded.image,
                                 themeBackground(targetActivity),
-                                TingConfig.appWallpaperAlpha(targetActivity)
+                                TingConfig.wallpaperAlpha(targetActivity)
                             )
                         }
                         callbacks.forEach { it.run() }

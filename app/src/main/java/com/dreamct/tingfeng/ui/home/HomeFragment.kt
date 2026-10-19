@@ -34,6 +34,7 @@ import com.dreamct.tingfeng.databinding.FragmentHomeBinding
 import com.dreamct.tingfeng.service.Ting
 import com.dreamct.tingfeng.service.TingConfig
 import com.dreamct.tingfeng.ui.navigation.TopBarAnimatable
+import com.dreamct.tingfeng.ui.theme.TingTheme
 import com.dreamct.tingfeng.utilities.AppWallpaperApplier
 import com.dreamct.tingfeng.utilities.applyStatusBarIconAppearance
 import com.dreamct.tingfeng.utilities.hasNotificationAccessPermission
@@ -148,6 +149,16 @@ class HomeFragment : Fragment(), TopBarAnimatable {
 
         // 堆叠重排时禁用默认条目动画，避免闪烁
         recyclerView.itemAnimator = null
+
+        // 顶栏三段色相渐变（淡化 50%，大面积背景混 colorSurface 防止浓烈染色）：
+        // 必须设在顶栏卡片本体上——卡片负 margin 越界覆盖状态栏区域，而内容容器
+        // topBarContainer 被压缩动画下移了 statusBarTop 且高度只含内容行，渐变放
+        // 它上面会与状态栏区的纯白割裂（另两页渐变载体是含状态栏 padding 的
+        // content，无此问题）；与 Dock 同源，见 TingTheme.hueGradient
+        binding.floatingTopBar.background = TingTheme.hueGradient(
+            requireContext(), dp(24f).toFloat(), horizontal = true, surfaceBlend = 0.5f,
+            stroke = true
+        )
 
         // 顶栏沉浸：滚动时渐显背景并与状态栏融为一体
         setupTopBarImmersion()

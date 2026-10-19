@@ -8,17 +8,19 @@ object TingConfig {
     private const val PREF_NAME = "ting_config"
     private const val KEY_SHOULD_RESTART = "should_restart"
     private const val KEY_SERVICE_PAUSED = "service_paused"
-    private const val KEY_WALLPAPER_ENABLED = "wallpaper_enabled"
     private const val KEY_WALLPAPER_ALPHA = "wallpaper_alpha"
     private const val KEY_APP_WALLPAPER_ENABLED = "app_wallpaper_enabled"
     private const val KEY_APP_WALLPAPER_URI = "app_wallpaper_uri"
-    private const val KEY_APP_WALLPAPER_ALPHA = "app_wallpaper_alpha"
     private const val KEY_CARD_STYLE_TYPE = "card_style_type"
     private const val KEY_CARD_GRADIENT_ID = "card_gradient_id"
     private const val KEY_CARD_BLUR_FROST = "card_blur_frost"
     private const val KEY_CARD_LIQUID_GLOSS = "card_liquid_gloss"
     private const val KEY_BLOCKED_PACKAGES = "blocked_packages"
     private const val KEY_BLOCKED_KEYWORDS = "blocked_keywords"
+    private const val KEY_APP_THEME = "app_theme"
+    private const val KEY_PENDING_THEME_REVEAL = "pending_theme_reveal"
+    private const val KEY_PENDING_THEME_REVEAL_X = "pending_theme_reveal_x"
+    private const val KEY_PENDING_THEME_REVEAL_Y = "pending_theme_reveal_y"
 
     /** 壁纸可见度范围（0~1）：0 = 壁纸完全隐藏，1 = 壁纸完全显示，无额外阈值 */
     const val MIN_WALLPAPER_ALPHA = 0f
@@ -58,22 +60,7 @@ object TingConfig {
             .getBoolean(KEY_SERVICE_PAUSED, false)
     }
 
-    /** 是否启用"背景使用系统壁纸" */
-    @JvmStatic
-    fun setWallpaperEnabled(context: Context, value: Boolean) {
-        context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
-            .edit {
-                putBoolean(KEY_WALLPAPER_ENABLED, value)
-            }
-    }
-
-    @JvmStatic
-    fun wallpaperEnabled(context: Context): Boolean {
-        return context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
-            .getBoolean(KEY_WALLPAPER_ENABLED, false)
-    }
-
-    /** 壁纸可见度（0~1，1 = 完全显示壁纸），已钳制到 [MIN, MAX] */
+    /** 应用内壁纸可见度（0~1，1 = 完全显示壁纸），已钳制到 [MIN, MAX] */
     @JvmStatic
     fun setWallpaperAlpha(context: Context, value: Float) {
         context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
@@ -89,14 +76,6 @@ object TingConfig {
         // 读取时同样钳制，防止历史数据越界导致界面不可见
         return stored.coerceIn(MIN_WALLPAPER_ALPHA, MAX_WALLPAPER_ALPHA)
     }
-
-    /**
-     * 壁纸背景的最终可见度（0~1）：功能关闭时视为 0，启用时为滑杆值。
-     * 直接对接 [com.dreamct.tingfeng.utilities.WallpaperApplier].apply(activity, visibility)。
-     */
-    @JvmStatic
-    fun wallpaperVisibility(context: Context): Float =
-        if (wallpaperEnabled(context)) wallpaperAlpha(context) else 0f
 
     /** 是否用用户选择的图片替代系统壁纸作为应用背景。 */
     @JvmStatic
@@ -124,18 +103,6 @@ object TingConfig {
     fun appWallpaperUri(context: Context): String? =
         context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
             .getString(KEY_APP_WALLPAPER_URI, null)
-
-    /** 应用内壁纸的不透明度（0~1），独立于系统壁纸透明度。 */
-    @JvmStatic
-    fun setAppWallpaperAlpha(context: Context, value: Float) {
-        context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
-            .edit { putFloat(KEY_APP_WALLPAPER_ALPHA, value.coerceIn(0f, 1f)) }
-    }
-
-    @JvmStatic
-    fun appWallpaperAlpha(context: Context): Float =
-        context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
-            .getFloat(KEY_APP_WALLPAPER_ALPHA, 1f).coerceIn(0f, 1f)
 
     // ------------------------- 卡片样式（通知卡片个性化） -------------------------
 
@@ -210,5 +177,42 @@ object TingConfig {
     fun blockedKeywords(context: Context): Set<String> {
         return context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
             .getStringSet(KEY_BLOCKED_KEYWORDS, emptySet()) ?: emptySet()
+    }
+
+    /** 应用主题（全局配色）：值为 TingTheme.id，未选择时为默认深海蓝调 */
+    @JvmStatic
+    fun setAppTheme(context: Context, value: String) {
+        context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+            .edit { putString(KEY_APP_THEME, value) }
+    }
+
+    @JvmStatic
+    fun appTheme(context: Context): String {
+        return context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+            .getString(KEY_APP_THEME, "plain") ?: "plain"
+    }
+
+    @JvmStatic
+    fun setPendingThemeReveal(context: Context, cx: Int, cy: Int) {
+        context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE).edit {
+            putBoolean(KEY_PENDING_THEME_REVEAL, true)
+            putInt(KEY_PENDING_THEME_REVEAL_X, cx)
+            putInt(KEY_PENDING_THEME_REVEAL_Y, cy)
+        }
+    }
+
+    /** 待播放的主题揭示动画触发点（窗口坐标），null = 无待播动画 */
+    @JvmStatic
+    fun pendingThemeReveal(context: Context): Pair<Int, Int>? {
+        val prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+        if (!prefs.getBoolean(KEY_PENDING_THEME_REVEAL, false)) return null
+        return prefs.getInt(KEY_PENDING_THEME_REVEAL_X, 0) to
+            prefs.getInt(KEY_PENDING_THEME_REVEAL_Y, 0)
+    }
+
+    @JvmStatic
+    fun clearPendingThemeReveal(context: Context) {
+        context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+            .edit { putBoolean(KEY_PENDING_THEME_REVEAL, false) }
     }
 }

@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingStart="16dp"
+    android:paddingEnd="16dp"
+    android:paddingBottom="16dp">
+
+    <!-- 抽屉把手：提示可下拉关闭（与通知过滤面板同款） -->
+    <View
+        android:layout_width="40dp"
+        android:layout_height="4dp"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="12dp"
+        android:background="@drawable/handle_bar" />
+
+    <!-- 标题 -->
+    <com.google.android.material.textview.MaterialTextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="主题设置"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:letterSpacing="0.02"
+        android:textColor="?attr/colorOnSurface" />
+
+    <!-- 当前主题三段色相渐变预览条（颜色由代码按 TingTheme.hueGradient 设置，
+         打开面板即预览当前主题的容器色相流动） -->
+    <View
+        android:id="@+id/theme_gradient_preview"
+        android:layout_width="match_parent"
+        android:layout_height="6dp"
+        android:layout_marginTop="10dp"
+        android:layout_marginBottom="2dp" />
+
+    <com.google.android.material.textview.MaterialTextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:layout_marginBottom="8dp"
+        android:text="配色应用于整个应用，深色模式跟随系统"
+        android:textSize="13sp"
+        android:gravity="center"
+        android:textColor="?attr/colorOnSurfaceVariant" />
+
+    <!-- 主题选项列表：行由代码按 TingThemes 枚举动态构建（色板 + 名称 + 选中态） -->
+    <LinearLayout
+        android:id="@+id/theme_options_list"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical" />
+</LinearLayout>

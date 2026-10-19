@@ -24,6 +24,7 @@ import androidx.lifecycle.lifecycleScope
 import com.dreamct.tingfeng.MainActivity
 import com.dreamct.tingfeng.data.AppDatabase
 import com.dreamct.tingfeng.ui.navigation.TopBarAnimatable
+import com.dreamct.tingfeng.ui.theme.TingTheme
 import com.google.android.material.card.MaterialCardView
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -111,7 +112,15 @@ class StatsFragment : Fragment(), TopBarAnimatable {
             clipChildren = false
             clipToPadding = false
         }
-        barContent = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
+        barContent = LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
+            // 顶栏三段色相渐变（淡化 50%）：content 含状态栏避让 padding、铺满整卡，
+            // 与底部 Dock、其余两页顶栏同源（见 TingTheme.hueGradient surfaceBlend）
+            background = TingTheme.hueGradient(
+                ctx, dp(24f).toFloat(), horizontal = true, surfaceBlend = 0.5f,
+                stroke = true
+            )
+        }
         barContent.addView(TextView(ctx).apply {
             text = "统计"
             textSize = 20f
@@ -197,11 +206,16 @@ class StatsFragment : Fragment(), TopBarAnimatable {
         )
         topBar.layoutParams = lp
         topBar.doOnLayout { bar ->
+            // 底部 padding 用 Dock 内容避让值（设置页同源）：clipToPadding=false，
+            // 内容可滚进 padding 区，滚到底时卡片末尾项目停在 Dock 上方不被遮挡
+            val dockInset = resources.getDimensionPixelSize(
+                com.dreamct.tingfeng.R.dimen.floating_dock_content_inset
+            )
             listScroll.setPadding(
                 0,
                 statusBarTop + bar.height + dp(8f),
                 0,
-                dp(24f)
+                dockInset
             )
         }
     }
