@@ -50,16 +50,14 @@
     </style>
 
     <!--
-        壁纸背景主题（仅 MainActivity 使用）：
-        - windowShowWallpaper 在【窗口创建时】就声明壁纸 flag：
-          1) 运行时永不增删 flag → 不会出现"旧帧叠加"的回声 bug；
-          2) 启动屏窗口同样继承该 flag，直接透出壁纸 → 消除冷启动页残影。
-        - 窗口背景透明，由 WallpaperApplier 在根布局铺纯色遮罩：
-          开关壁纸/调透明度 = 只改遮罩不透明度，即时生效，无需重启。
-          功能关闭时遮罩完全不透明，视觉与普通背景一致。
+        壁纸背景主题（仅 MainActivity 使用）：窗口保持不透明。
+        - 不声明 windowShowWallpaper / 透明 windowBackground：透明窗口在
+          冷启动 splash 与后台恢复瞬间无兜底内容，真机实测透出黑色
+          （ROM 兜底）或整个桌面布局（Launcher 短暂可见）；
+        - windowBackground = 应用背景色：启动屏/恢复瞬间与应用自身背景同色，
+          视觉无跳变；应用内壁纸由 AppWallpaperApplier 画在根布局背景。
     -->
     <style name="Theme.FoundationX.Wallpaper" parent="Theme.FoundationX">
-        <item name="android:windowShowWallpaper">true</item>
-        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowBackground">@color/md_theme_background</item>
     </style>
 </resources>

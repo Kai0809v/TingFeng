@@ -7,8 +7,25 @@ import androidx.room.Query
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
+/** 屏蔽应用选择器用：记录过的通知里的一个不同应用（包名 + 记录时的应用名） */
+data class KnownApp(
+    val pkg: String,
+    val name: String,
+    /** 该应用最近一条记录的时间，仅用于取最新应用名，不参与展示 */
+    val latest: Long
+)
+
 @Dao
 interface NotifyDao {
+
+    /** 记录过的不同应用（按包名去重，应用名取最近一条记录的值）；屏蔽应用选择器数据源 */
+    @Query("""
+        SELECT packageName AS pkg, appName AS name, MAX(time) AS latest
+        FROM notification_logs
+        GROUP BY packageName
+        ORDER BY name
+    """)
+    suspend fun getKnownApps(): List<KnownApp>
 
     /** 插入一条新记录，冲突策略为替换 */
     @Insert(onConflict = OnConflictStrategy.REPLACE)

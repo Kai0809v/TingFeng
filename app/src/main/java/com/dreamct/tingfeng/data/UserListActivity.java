@@ -33,6 +33,7 @@ public class UserListActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        com.dreamct.tingfeng.ui.theme.TingTheme.applyTo(this);
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_users);
 

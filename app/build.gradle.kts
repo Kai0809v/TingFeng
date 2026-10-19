@@ -37,6 +37,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // 本地测试用：让 release APK 可直接安装到模拟器/真机测量启动性能
+            // 正式发布前请移除此行，改用正式签名
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
     compileOptions {

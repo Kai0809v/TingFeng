@@ -10,7 +10,7 @@ class SettingsViewModel : ViewModel() {
         "为了更稳定的运行\n" +
                 "建议在设置-耗电管理中允许应用后台行为\n" +
                 "耗电量并不高\n" +
-                "在转为前台服务前，未必管用"
+                "建议开启通知栏常驻增强稳定性（待完成）"
     )
 
     val text: LiveData<String> = _text

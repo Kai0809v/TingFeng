@@ -43,6 +43,9 @@ public class MainActivity extends AppCompatActivity {
     // 切页后新页视图尚未创建（懒加载首切）时挂起的待播动画页位置（-1 = 无）
     private int pendingTopBarEntrance = -1;
 
+    /** onSaveInstanceState 保存的最后停留页 key（recreate/旋转后恢复用） */
+    private static final String KEY_LAST_PAGE = "last_selected_page";
+
     /**
      * 刷新主页所有通知卡片样式（设置页样式/滑块变化后调用）：
      * ViewPager2 常驻架构下主页视图不随切页销毁重建，必须主动重应用样式。
@@ -59,6 +62,9 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        // 应用主题（全局配色）：必须先于 super.onCreate / setContentView 叠加
+        // 主题覆盖样式（TingTheme.applyTo 注释说明覆盖范围与切换机制）
+        com.dreamct.tingfeng.ui.theme.TingTheme.applyTo(this);
         super.onCreate(savedInstanceState);
         // 沉浸式：状态栏/导航栏透明，壁纸与应用背景直接延伸到系统栏后面。
         // 状态栏图标外观不在此定死：各 Fragment 按顶栏实际背景色自适应
@@ -69,6 +75,10 @@ public class MainActivity extends AppCompatActivity {
         binding = ActivityMainBinding.inflate(getLayoutInflater());//绑定布局
         setContentView(binding.getRoot());
 
+        // 主题切换揭示动画：设置页切主题 recreate 后，新首帧以点击点为圆心
+        // 圆形展开新主题内容（无 pending 标志则立即返回，无副作用）
+        com.dreamct.tingfeng.ui.animation.ThemeRevealAnimator.playIfPending(this);
+
         // 应用内图片优先；未启用时恢复透出的系统壁纸与其透明度遮罩。
         AppWallpaperApplier.applyConfigured(this);
 
@@ -76,8 +86,21 @@ public class MainActivity extends AppCompatActivity {
         // 之后切换零重建）。禁用滑动手势：页面切换只由底部 Dock 驱动。
         binding.mainPager.setAdapter(new MainPagerAdapter(this));
         binding.mainPager.setUserInputEnabled(false);
-        // 默认起点 = 主页 tab（位置 1）
-        binding.mainPager.setCurrentItem(MainPagerAdapter.POSITION_HOME, false);
+        // 起点页：冷启动 = 主页 tab；recreate（切主题）/旋转 = 恢复最后停留页。
+        // 必须在 onCreate 内按保存状态显式恢复——ViewPager2 自身的状态恢复
+        // （onRestoreInstanceState，在 onCreate 返回后）把 pager 拉回恢复前页面
+        // 且该路径不触发 onPageSelected，Dock 组合时机的早晚也不可控；这里
+        // setCurrentItem 立即生效且早于 Dock 首帧组合，Dock 主动同步
+        // （selectedDestination = pager.currentItem）必读到正确位置，选中态
+        // 与页面一致（修复：切主题后界面在设置页、Dock 却选中主页）。
+        // 同时同步 lastSelectedTopBarPage，保证恢复后首次切页仍播顶栏入场动画。
+        if (savedInstanceState == null) {
+            binding.mainPager.setCurrentItem(MainPagerAdapter.POSITION_HOME, false);
+        } else {
+            int savedPage = savedInstanceState.getInt(KEY_LAST_PAGE, MainPagerAdapter.POSITION_HOME);
+            binding.mainPager.setCurrentItem(savedPage, false);
+            lastSelectedTopBarPage = savedPage;
+        }
 
         // Fragment 内容避开系统栏：顶部留出状态栏高度（状态栏区域透出壁纸，
         // 与应用界面融合），底部留出导航栏高度；浮动 Dock 自己处理系统栏内边距。
@@ -145,6 +168,17 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        // 记录最后停留页：recreate（切主题）/旋转后 onCreate 按此恢复起点页。
+        // ViewPager2 自身的状态恢复不触发 onPageSelected（Dock 无法被动对齐），
+        // 必须自己保存并在 onCreate 显式 setCurrentItem（见 onCreate 注释）
+        if (binding != null) {
+            outState.putInt(KEY_LAST_PAGE, binding.mainPager.getCurrentItem());
+        }
+        super.onSaveInstanceState(outState);
+    }
+
     /**
      * Fragment 视图创建晚于切页回调时，领取待播的顶栏入场动画（取走即清）。
      * 懒加载下切页只创建目标页，第一个来领取的即目标页。
@@ -155,6 +189,14 @@ public class MainActivity extends AppCompatActivity {
             return true;
         }
         return false;
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        // 后台期间系统壁纸可能被更换：回前台重应用背景（壁纸 bitmap 按系统
+        // 壁纸 id 缓存，未更换时零开销命中；应用内壁纸同样有 asset 缓存）
+        AppWallpaperApplier.applyConfigured(this);
     }
 
     // 添加动画方法，添加空检查

@@ -6,6 +6,7 @@ import android.graphics.drawable.GradientDrawable
 import android.util.TypedValue
 import android.view.View
 import androidx.appcompat.R as AppCompatR
+import com.google.android.material.R as MaterialR
 import androidx.core.content.ContextCompat
 import com.dreamct.tingfeng.service.TingConfig
 
@@ -71,11 +72,21 @@ object CardStyleEngine : HFConfig.NotificationCardStyle {
         applyGradientColors(card, listOf(primary, blend(primary, Color.WHITE, 0.35f)))
     }
 
-    /** 渐变背景 + 浅色文字 */
+    /** 渐变背景（渐变色整体与 colorSurface 混 32% 淡化：顶栏已淡化为极浅
+     *  色相流动，卡片渐变同步降饱和避免喧宾夺主）。文字颜色按渐变特性选择：
+     *  有色渐变（淡化后仍保色相）用浅色文字；无彩灰阶渐变（极简白灰主题的
+     *  动态配色混白后接近中灰）白字对比不足，自动切深色文字保证可见性。 */
     private fun applyGradientColors(card: NotificationCardView, colors: List<Int>) {
+        val surface = themeColor(card.context, MaterialR.attr.colorSurface, 0xFFFFFFFF.toInt())
+        val blended = colors.map { blend(it, surface, 0.32f) }
         card.setCardBackgroundColor(Color.TRANSPARENT)
-        card.styleContainer.background = buildDrawable(card, colors.toIntArray(), strokeColor = 0)
-        setTextColors(card, light = true, shadow = false)
+        card.styleContainer.background = buildDrawable(card, blended.toIntArray(), strokeColor = 0)
+        // 取渐变最亮端的通道极差作灰度判据（最浅处决定浅色文字的可读性）：
+        // 通道差 > 12 视为有色相（浅色文字），否则视为灰阶（深色文字）
+        val brightest = blended.maxBy { luminance(it) }
+        val grayness = maxOf(Color.red(brightest), Color.green(brightest), Color.blue(brightest)) -
+            minOf(Color.red(brightest), Color.green(brightest), Color.blue(brightest))
+        setTextColors(card, light = grayness > 12, shadow = false)
     }
 
     /**
@@ -148,6 +159,10 @@ object CardStyleEngine : HFConfig.NotificationCardStyle {
 
     private fun lerp(a: Int, b: Int, ratio: Float): Int =
         (a * (1f - ratio) + b * ratio).toInt().coerceIn(0, 255)
+
+    /** 感知亮度加权值（0~255×1000，仅用于相对比较） */
+    private fun luminance(color: Int): Int =
+        Color.red(color) * 299 + Color.green(color) * 587 + Color.blue(color) * 114
 
     /** 保留颜色 RGB，替换 alpha（0~255） */
     private fun setAlpha(color: Int, alpha: Int): Int =
